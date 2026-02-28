@@ -9,9 +9,25 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vscode-http",
+          "title": "HTTP 客户端",
+          "icon": "./resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "vscode-http": [
+        {
+          "id": "vscode-http.requestTree",
+          "name": "HTTP 请求"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "vscode-http.helloWorld",
