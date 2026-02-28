@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { HttpRequestTreeProvider } from './provider/http_request_tree_provider';
+import type { Project } from './models/types';
 
 // This method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
@@ -14,11 +15,23 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(treeView);
 
-	const disposable = vscode.commands.registerCommand('vscode-http.helloWorld', () => {
-		vscode.window.showInformationMessage('Hello World from vscode-http!');
-	});
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-http.helloWorld', () => {
+			vscode.window.showInformationMessage('Hello World from vscode-http!');
+		})
+	);
 
-	context.subscriptions.push(disposable);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-http.manageEnvironments', (project: Project) => {
+			treeProvider.addEnvironment(project);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-http.setCurrentEnvironment', (project: Project) => {
+			treeProvider.setCurrentEnvironment(project);
+		})
+	);
 }
 
 // This method is called when your extension is deactivated

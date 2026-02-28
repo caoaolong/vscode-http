@@ -4,10 +4,18 @@
 
 export type TreeNodeType = 'project' | 'collection' | 'interface' | 'requestBody' | 'responseBody';
 
+export interface Environment {
+  id: string;
+  name: string;
+  baseUrl: string;
+}
+
 export interface Project {
   id: string;
   name: string;
   children: (Collection | Interface)[];
+  environments?: Environment[];
+  currentEnvId?: string;
 }
 
 export interface Collection {
