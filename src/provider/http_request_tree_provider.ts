@@ -1,5 +1,14 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 import type { Project, Collection, Interface, Environment } from '../models/types';
+
+const STORAGE_DIR = '.vscode-http';
+const PROJECTS_INDEX = 'projects.json';
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'project';
+}
 
 type TreeDataItem = Project | Collection | Interface | { type: 'requestBody'; parent: Interface } | { type: 'responseBody'; parent: Interface };
 
@@ -64,63 +73,78 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     return 'vscode-http.savedRequests';
   }
 
+  private getStorageDir(): string | undefined {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    return folder ? path.join(folder.uri.fsPath, STORAGE_DIR) : undefined;
+  }
+
   private loadFromStorage() {
-    const stored = this.context.globalState.get<Project[]>(this.storageKey);
-    if (stored) {
-      this.projects = stored;
-    } else {
-      // 默认示例数据，便于展示层级
-      this.projects = [
-        {
-          id: 'proj-1',
-          name: '示例项目',
-          environments: [
-            { id: 'env-1', name: '开发', baseUrl: 'https://api.example.com' },
-          ],
-          currentEnvId: 'env-1',
-          children: [
-            {
-              id: 'coll-1',
-              name: '用户相关',
-              parentId: 'proj-1',
-              children: [
-                {
-                  id: 'api-1',
-                  name: '获取用户列表',
-                  url: 'https://api.example.com/users',
-                  method: 'GET',
-                  parentId: 'coll-1',
-                  requestBody: undefined,
-                  responseBody: '[]',
-                },
-                {
-                  id: 'api-2',
-                  name: '创建用户',
-                  url: 'https://api.example.com/users',
-                  method: 'POST',
-                  parentId: 'coll-1',
-                  requestBody: '{"name": "", "email": ""}',
-                  responseBody: undefined,
-                },
-              ],
-            },
-            {
-              id: 'api-3',
-              name: '健康检查',
-              url: 'https://api.example.com/health',
-              method: 'GET',
-              parentId: 'proj-1',
-              requestBody: undefined,
-              responseBody: '{"status": "ok"}',
-            },
-          ],
-        },
-      ];
-      this.saveToStorage();
+    const dir = this.getStorageDir();
+    if (dir) {
+      try {
+        const indexPath = path.join(dir, PROJECTS_INDEX);
+        if (fs.existsSync(indexPath)) {
+          const index = JSON.parse(fs.readFileSync(indexPath, 'utf8')) as { projects: Array<{ id: string; name: string }> };
+          this.projects = [];
+          for (const p of index.projects || []) {
+            const fileName = sanitizeFileName(p.name) + '.json';
+            const filePath = path.join(dir, fileName);
+            if (fs.existsSync(filePath)) {
+              const project = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Project;
+              this.projects.push(project);
+            }
+          }
+        }
+      } catch {
+        this.projects = [];
+      }
+    }
+    if (this.projects.length === 0) {
+      const stored = this.context.globalState.get<Project[]>(this.storageKey);
+      if (stored) {
+        this.projects = stored;
+        this.saveToStorage();
+      } else {
+        this.projects = [
+          {
+            id: 'proj-1',
+            name: '示例项目',
+            environments: [{ id: 'env-1', name: '开发', baseUrl: 'https://api.example.com' }],
+            currentEnvId: 'env-1',
+            children: [
+              {
+                id: 'coll-1',
+                name: '用户相关',
+                parentId: 'proj-1',
+                children: [
+                  { id: 'api-1', name: '获取用户列表', url: 'https://api.example.com/users', method: 'GET', parentId: 'coll-1', requestBody: undefined, responseBody: '[]' },
+                  { id: 'api-2', name: '创建用户', url: 'https://api.example.com/users', method: 'POST', parentId: 'coll-1', requestBody: '{"name": "", "email": ""}', responseBody: undefined },
+                ],
+              },
+              { id: 'api-3', name: '健康检查', url: 'https://api.example.com/health', method: 'GET', parentId: 'proj-1', requestBody: undefined, responseBody: '{"status": "ok"}' },
+            ],
+          },
+        ];
+        this.saveToStorage();
+      }
     }
   }
 
   private saveToStorage() {
+    const dir = this.getStorageDir();
+    if (dir) {
+      try {
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const index = { projects: this.projects.map((p) => ({ id: p.id, name: p.name })) };
+        fs.writeFileSync(path.join(dir, PROJECTS_INDEX), JSON.stringify(index, null, 2), 'utf8');
+        for (const project of this.projects) {
+          const fileName = sanitizeFileName(project.name) + '.json';
+          fs.writeFileSync(path.join(dir, fileName), JSON.stringify(project, null, 2), 'utf8');
+        }
+      } catch (e) {
+        console.error('vscode-http save failed:', e);
+      }
+    }
     this.context.globalState.update(this.storageKey, this.projects);
   }
 
@@ -154,10 +178,12 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
         element.name,
         vscode.TreeItemCollapsibleState.Collapsed
       );
+      item.id = element.id;
       item.iconPath = new vscode.ThemeIcon('globe');
       const project = this.getProjectForItem(element);
       const baseUrl = project ? this.getCurrentBaseUrl(project) : undefined;
-      item.description = getPathFromUrl(element.url, baseUrl);
+      const path = getPathFromUrl(element.url, baseUrl);
+      item.description = `${element.method || 'GET'} ${path}`;
       item.tooltip = `${element.method || 'GET'} ${element.url}`;
       item.contextValue = 'interface';
       return item;
@@ -221,6 +247,43 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     return this.projects;
   }
 
+  /** 获取接口所属项目的当前环境 baseUrl */
+  getBaseUrlForInterface(iface: Interface): string | undefined {
+    const project = this.getProjectForItem(iface);
+    return project ? this.getCurrentBaseUrl(project) : undefined;
+  }
+
+  /** 获取接口所属项目 */
+  getProjectForInterface(iface: Interface): Project | undefined {
+    return this.getProjectForItem(iface);
+  }
+
+  /** 获取接口所属项目的环境列表、当前环境 id，供编辑器下拉选择 */
+  getEnvironmentsForInterface(iface: Interface): { environments: Environment[]; currentEnvId?: string } {
+    const project = this.getProjectForItem(iface);
+    const envs = project?.environments ?? [];
+    return { environments: envs, currentEnvId: project?.currentEnvId };
+  }
+
+  /** 从完整 url 中提取路径部分（去除 baseUrl 前缀），供编辑器使用 */
+  getPathFromFullUrl(url: string, baseUrl?: string): string {
+    return getPathFromUrl(url, baseUrl);
+  }
+
+  getInterfaceById(id: string): Interface | undefined {
+    for (const p of this.projects) {
+      for (const c of p.children) {
+        if (this.isInterface(c)) {
+          if (c.id === id) return c;
+        } else {
+          const found = (c as Collection).children.find((i) => i.id === id);
+          if (found) return found;
+        }
+      }
+    }
+    return undefined;
+  }
+
   async addEnvironment(project: Project): Promise<void> {
     const name = await vscode.window.showInputBox({ prompt: '输入环境名称', placeHolder: '例如：开发、测试、生产' });
     if (!name?.trim()) return;
@@ -234,6 +297,25 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     if (!project.environments) project.environments = [];
     project.environments.push(env);
     if (!project.currentEnvId) project.currentEnvId = env.id;
+    this.saveToStorage();
+    this.refresh();
+  }
+
+  updateInterface(iface: Interface, data: {
+    url: string; method?: string; headers?: Record<string, string>;
+    requestBody?: string; bodyType?: import('../models/types').BodyType;
+    formData?: import('../models/types').FormDataItem[];
+    formUrlEncoded?: Array<{ key: string; value: string }>;
+    binaryBase64?: string;
+  }): void {
+    iface.url = data.url;
+    if (data.method) iface.method = data.method;
+    if (data.headers !== undefined) iface.headers = data.headers;
+    if (data.requestBody !== undefined) iface.requestBody = data.requestBody;
+    if (data.bodyType !== undefined) iface.bodyType = data.bodyType;
+    if (data.formData !== undefined) iface.formData = data.formData;
+    if (data.formUrlEncoded !== undefined) iface.formUrlEncoded = data.formUrlEncoded;
+    if (data.binaryBase64 !== undefined) iface.binaryBase64 = data.binaryBase64;
     this.saveToStorage();
     this.refresh();
   }
@@ -252,5 +334,15 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     project.currentEnvId = chosen.env.id;
     this.saveToStorage();
     this.refresh();
+  }
+
+  /** 由请求编辑器调用：切换项目的当前环境 */
+  setCurrentEnvironmentById(project: Project, envId: string): void {
+    const envs = project.environments ?? [];
+    if (envs.some((e) => e.id === envId)) {
+      project.currentEnvId = envId;
+      this.saveToStorage();
+      this.refresh();
+    }
   }
 }

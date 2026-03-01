@@ -25,6 +25,16 @@ export interface Collection {
   children: Interface[];
 }
 
+export type BodyType = 'form-data' | 'x-www-form-urlencoded' | 'json' | 'xml' | 'raw' | 'binary' | 'graphql';
+
+export interface FormDataItem {
+  key: string;
+  value: string;
+  type: 'text' | 'file';
+  fileName?: string;
+  fileBase64?: string;
+}
+
 export interface Interface {
   id: string;
   name: string;
@@ -33,4 +43,9 @@ export interface Interface {
   parentId: string;
   requestBody?: string;
   responseBody?: string;
+  headers?: Record<string, string>;
+  bodyType?: BodyType;
+  formData?: FormDataItem[];
+  formUrlEncoded?: Array<{ key: string; value: string }>;
+  binaryBase64?: string;
 }
