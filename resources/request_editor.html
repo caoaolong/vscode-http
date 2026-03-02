@@ -132,6 +132,18 @@
       border: 1px solid var(--vscode-input-border);
       border-radius: 6px;
     }
+    .header-add-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+    .header-add-actions .header-preset-select {
+      min-width: 180px; padding: 6px 10px;
+      background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border); border-radius: 6px; font-size: 12px;
+    }
+    .header-add-actions .header-custom-input {
+      min-width: 120px; padding: 6px 10px;
+      background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border); border-radius: 6px; font-size: 12px;
+    }
+    .header-add-actions .add-btn { margin-top: 0; }
     .add-btn { padding: 6px 12px; font-size: 12px; margin-top: 6px; }
     .remove-btn {
       padding: 6px 10px;
@@ -252,7 +264,14 @@
   <div class="section">
     <div class="section-title">请求头</div>
     <div id="headers"></div>
-    <button class="btn add-btn btn-secondary" id="addHeader">+ 添加请求头</button>
+    <div class="header-add-actions">
+      <select class="header-preset-select" id="headerPresetSelect">
+        <option value="">选择常用请求头...</option>
+      </select>
+      <button class="btn add-btn btn-secondary" id="addHeader">添加请求头</button>
+      <input type="text" class="header-custom-input" id="headerCustomInput" placeholder="自定义请求头名" />
+      <button class="btn add-btn btn-secondary" id="addCustomHeader">添加自定义头</button>
+    </div>
   </div>
 
   <div class="body-response-layout">
@@ -368,6 +387,16 @@
     }
 
     const COMMON_HEADERS = ['Accept','Accept-Charset','Accept-Encoding','Accept-Language','Authorization','Cache-Control','Content-Type','Cookie','Host','Origin','Referer','User-Agent','X-API-Key','X-Auth-Token','X-Requested-With','X-CSRF-Token'];
+
+    (function initHeaderPresetSelect() {
+      const sel = document.getElementById('headerPresetSelect');
+      COMMON_HEADERS.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h;
+        opt.textContent = h;
+        sel.appendChild(opt);
+      });
+    })();
 
     function addHeaderRow(key = '', value = '') {
       const row = document.createElement('div');
@@ -527,7 +556,22 @@
       return payload;
     }
 
-    document.getElementById('addHeader').onclick = () => addHeaderRow();
+    document.getElementById('addHeader').onclick = () => {
+      const key = document.getElementById('headerPresetSelect').value.trim();
+      if (!key) return;
+      addHeaderRow(key, '');
+      document.getElementById('headerPresetSelect').value = '';
+    };
+    document.getElementById('addCustomHeader').onclick = () => {
+      const key = document.getElementById('headerCustomInput').value.trim();
+      addHeaderRow(key, '');
+      document.getElementById('headerCustomInput').value = '';
+      const lastRow = headersEl.querySelector('.header-row:last-child');
+      if (lastRow) {
+        const valueInput = lastRow.querySelector('.header-value');
+        if (valueInput) valueInput.focus();
+      }
+    };
 
     document.getElementById('addFormData').onclick = () => addFormDataRow();
 

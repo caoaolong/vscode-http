@@ -161,15 +161,18 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
       item.description = baseUrl ?? '';
       item.tooltip = baseUrl ? `当前环境: ${baseUrl}` : `项目: ${element.name}`;
       item.contextValue = 'project';
+      item.command = { command: 'vscode-http.manageEnvironments', arguments: [element.id], title: '环境管理' };
       return item;
     }
 
     if (this.isCollection(element)) {
       const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Expanded);
+      item.id = element.id;
       item.iconPath = new vscode.ThemeIcon('folder');
       item.description = `${element.children.length} 个请求`;
       item.tooltip = `集合: ${element.name}`;
       item.contextValue = 'collection';
+      item.command = { command: 'vscode-http.manageCollection', arguments: [element.id], title: '管理集合' };
       return item;
     }
 
@@ -284,6 +287,124 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     return undefined;
   }
 
+  getCollectionById(id: string): Collection | undefined {
+    for (const p of this.projects) {
+      const col = p.children.find((c) => 'children' in c && (c as Collection).id === id) as Collection | undefined;
+      if (col) return col;
+    }
+    return undefined;
+  }
+
+  async createCollection(project: Project): Promise<void> {
+    const name = await vscode.window.showInputBox({
+      prompt: '输入集合名称',
+      placeHolder: '例如：用户相关、订单相关',
+    });
+    if (!name?.trim()) return;
+    const coll: Collection = {
+      id: `coll-${Date.now()}`,
+      name: name.trim(),
+      parentId: project.id,
+      children: [],
+    };
+    project.children.push(coll);
+    this.saveToStorage();
+    this.refresh();
+    vscode.window.showInformationMessage('已创建集合');
+  }
+
+  async deleteCollection(collection: Collection): Promise<void> {
+    const confirm = await vscode.window.showWarningMessage(
+      `确定删除集合「${collection.name}」？将同时删除其下所有接口。`,
+      '删除',
+      '取消'
+    );
+    if (confirm !== '删除') return;
+    const project = this.getProjectForItem(collection);
+    if (!project) return;
+    const idx = project.children.findIndex((c) => 'children' in c && (c as Collection).id === collection.id);
+    if (idx >= 0) {
+      project.children.splice(idx, 1);
+      this.saveToStorage();
+      this.refresh();
+      vscode.window.showInformationMessage('已删除集合');
+    }
+  }
+
+  renameCollectionSync(collection: Collection, name: string): void {
+    if (!name?.trim()) return;
+    collection.name = name.trim();
+    this.saveToStorage();
+    this.refresh();
+  }
+
+  async createInterface(collection: Collection): Promise<Interface | undefined> {
+    const project = this.getProjectForItem(collection);
+    const baseUrl = project ? this.getCurrentBaseUrl(project) : undefined;
+    const name = await vscode.window.showInputBox({ prompt: '输入接口名称', placeHolder: '例如：获取用户信息' });
+    if (!name?.trim()) return undefined;
+    const pathInput = await vscode.window.showInputBox({
+      prompt: '输入路径',
+      placeHolder: baseUrl ? '/users 或 /api/users/1' : 'https://api.example.com/users',
+      value: '/',
+    });
+    if (pathInput === undefined) return undefined;
+    const path = (pathInput ?? '/').trim();
+    const method = await vscode.window.showQuickPick(
+      ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      { placeHolder: '选择请求方法', canPickMany: false }
+    );
+    if (!method) return undefined;
+    const fullUrl = baseUrl
+      ? (baseUrl.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path))
+      : path.startsWith('http') ? path : 'https://api.example.com' + (path.startsWith('/') ? path : '/' + path);
+    const iface: Interface = {
+      id: `api-${Date.now()}`,
+      name: name.trim(),
+      url: fullUrl,
+      method,
+      parentId: collection.id,
+    };
+    collection.children.push(iface);
+    this.saveToStorage();
+    this.refresh();
+    vscode.window.showInformationMessage('已创建接口');
+    return iface;
+  }
+
+  async deleteInterface(iface: Interface): Promise<void> {
+    const confirm = await vscode.window.showWarningMessage(`确定删除接口「${iface.name}」？`, '删除', '取消');
+    if (confirm !== '删除') return;
+    const project = this.getProjectForItem(iface);
+    if (!project) return;
+    if (iface.parentId === project.id) {
+      const idx = project.children.findIndex((c) => !('children' in c) && (c as Interface).id === iface.id);
+      if (idx >= 0) {
+        project.children.splice(idx, 1);
+        this.saveToStorage();
+        this.refresh();
+        // vscode.window.showInformationMessage('已删除接口');
+      }
+    } else {
+      const collection = project.children.find((c) => 'children' in c && (c as Collection).id === iface.parentId) as Collection | undefined;
+      if (!collection) return;
+      const idx = collection.children.findIndex((i) => i.id === iface.id);
+      if (idx >= 0) {
+        collection.children.splice(idx, 1);
+        this.saveToStorage();
+        this.refresh();
+        // vscode.window.showInformationMessage('已删除接口');
+      }
+    }
+  }
+
+  renameProjectSync(project: Project, name: string): void {
+    if (!name?.trim()) return;
+    project.name = name.trim();
+    this.saveToStorage();
+    this.refresh();
+  }
+
   async addEnvironment(project: Project): Promise<void> {
     const name = await vscode.window.showInputBox({ prompt: '输入环境名称', placeHolder: '例如：开发、测试、生产' });
     if (!name?.trim()) return;
@@ -299,6 +420,32 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     if (!project.currentEnvId) project.currentEnvId = env.id;
     this.saveToStorage();
     this.refresh();
+  }
+
+  updateEnvironment(project: Project, envId: string, data: { name: string; baseUrl: string }): void {
+    const env = (project.environments ?? []).find((e) => e.id === envId);
+    if (!env) return;
+    if (data.name) env.name = data.name;
+    if (data.baseUrl !== undefined) env.baseUrl = data.baseUrl.replace(/\/+$/, '');
+    this.saveToStorage();
+    this.refresh();
+  }
+
+  async deleteEnvironment(project: Project, envId: string): Promise<void> {
+    const env = (project.environments ?? []).find((e) => e.id === envId);
+    if (!env) return;
+    const confirm = await vscode.window.showWarningMessage(`确定删除环境「${env.name}」？`, '删除', '取消');
+    if (confirm !== '删除') return;
+    const envs = project.environments ?? [];
+    const idx = envs.findIndex((e) => e.id === envId);
+    if (idx < 0) return;
+    envs.splice(idx, 1);
+    if (project.currentEnvId === envId) {
+      project.currentEnvId = envs[0]?.id ?? undefined;
+    }
+    this.saveToStorage();
+    this.refresh();
+    // vscode.window.showInformationMessage('已删除');
   }
 
   updateInterface(iface: Interface, data: {

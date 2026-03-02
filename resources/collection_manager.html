@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>集合管理</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px 24px;
+      font-family: var(--vscode-font-family);
+      font-size: 13px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+    }
+    .title { font-weight: 600; font-size: 14px; margin-bottom: 16px; color: var(--vscode-foreground); }
+    .coll-name-row {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: var(--vscode-editor-inactiveSelectionBackground);
+      border-radius: 6px;
+      border: 1px solid var(--vscode-widget-border);
+    }
+    .coll-name-row label { display: block; font-size: 11px; color: var(--vscode-descriptionForeground); margin-bottom: 6px; }
+    .coll-name-row input {
+      width: 100%; padding: 8px 12px;
+      background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border); border-radius: 6px; font-size: 13px;
+    }
+    .coll-name-row input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .iface-list { margin-bottom: 16px; }
+    .iface-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+      padding: 10px 12px;
+      background: var(--vscode-editor-inactiveSelectionBackground);
+      border-radius: 6px;
+      border: 1px solid var(--vscode-widget-border);
+    }
+    .iface-row .iface-info { flex: 1; min-width: 0; font-size: 12px; }
+    .iface-row .iface-name { font-weight: 500; margin-bottom: 2px; }
+    .iface-row .iface-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }
+    .btn {
+      padding: 6px 12px;
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .btn:hover { background: var(--vscode-button-hoverBackground); }
+    .btn-secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+    .btn-secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .btn-danger { background: transparent; color: var(--vscode-errorForeground); }
+    .btn-danger:hover { background: var(--vscode-inputValidation-errorBackground); }
+  </style>
+</head>
+<body>
+  <div class="coll-name-row">
+    <label>集合名称</label>
+    <input type="text" id="collName" placeholder="输入集合名称" />
+  </div>
+  <div class="title">接口列表</div>
+  <div class="iface-list" id="ifaceList"></div>
+  <button class="btn btn-secondary" id="addIface" style="margin-top:8px">+ 添加接口</button>
+  <script>
+    const vscode = acquireVsCodeApi();
+    let collectionId = '';
+    let collectionName = '';
+    let interfaces = [];
+
+    document.getElementById('collName').onblur = function() {
+      const name = this.value.trim();
+      if (name && name !== collectionName) {
+        vscode.postMessage({ type: 'updateCollectionName', name });
+      }
+    };
+
+    function render() {
+      const list = document.getElementById('ifaceList');
+      list.innerHTML = interfaces.map(iface => {
+        const method = iface.method || 'GET';
+        const path = (iface.url || '').replace(/^https?:\/\/[^/]+/, '') || '/';
+        return '<div class="iface-row" data-id="' + escapeAttr(iface.id) + '">' +
+          '<div class="iface-info">' +
+            '<div class="iface-name">' + escapeHtml(iface.name) + '</div>' +
+            '<div class="iface-meta">' + escapeHtml(method + ' ' + path) + '</div>' +
+          '</div>' +
+          '<button class="btn btn-secondary edit-btn" data-id="' + escapeAttr(iface.id) + '">编辑</button>' +
+          '<button class="btn btn-danger delete-btn" data-id="' + escapeAttr(iface.id) + '">删除</button>' +
+        '</div>';
+      }).join('');
+
+      list.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.onclick = () => vscode.postMessage({ type: 'editInterface', ifaceId: btn.dataset.id });
+      });
+      list.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.onclick = () => vscode.postMessage({ type: 'deleteInterface', ifaceId: btn.dataset.id });
+      });
+    }
+
+    function escapeAttr(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    document.getElementById('addIface').onclick = () => vscode.postMessage({ type: 'addInterface' });
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    window.addEventListener('message', e => {
+      const msg = e.data;
+      if (msg.type === 'init') {
+        collectionId = msg.collectionId || '';
+        collectionName = msg.collectionName || '';
+        interfaces = msg.interfaces || [];
+        document.getElementById('collName').value = collectionName;
+        render();
+      } else if (msg.type === 'update') {
+        collectionName = msg.collectionName ?? collectionName;
+        interfaces = msg.interfaces || [];
+        document.getElementById('collName').value = collectionName;
+        render();
+      }
+    });
+  </script>
+</body>
+</html>

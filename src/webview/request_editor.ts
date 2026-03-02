@@ -4,6 +4,7 @@ import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Interface, Environment } from '../models/types';
+import { tryReveal, registerPanel } from './panel_registry';
 
 export type BodyType = 'form-data' | 'x-www-form-urlencoded' | 'json' | 'xml' | 'raw' | 'binary' | 'graphql';
 
@@ -152,6 +153,8 @@ async function sendHttpRequest(data: RequestData): Promise<ResponseData> {
   });
 }
 
+const REQUEST_PANEL_PREFIX = 'request-editor:';
+
 export function createRequestEditorPanel(
   context: vscode.ExtensionContext,
   iface: Interface,
@@ -163,6 +166,9 @@ export function createRequestEditorPanel(
   onSave: (iface: Interface, data: RequestData) => void,
   onEnvChange: (projectId: string, envId: string) => void
 ): void {
+  const panelId = REQUEST_PANEL_PREFIX + iface.id;
+  if (tryReveal(panelId)) return;
+
   const title = iface.name;
   const panel = vscode.window.createWebviewPanel('vscode-http.requestEditor', title, vscode.ViewColumn.One, {
     enableScripts: true,
@@ -170,6 +176,7 @@ export function createRequestEditorPanel(
     localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'monaco-editor')],
   });
 
+  registerPanel(panelId, panel);
   panel.webview.html = getHtml(context, panel.webview);
 
   panel.webview.onDidReceiveMessage(

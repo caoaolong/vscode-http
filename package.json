@@ -39,19 +39,51 @@
         "title": "环境管理"
       },
       {
-        "command": "vscode-http.setCurrentEnvironment",
-        "title": "当前环境"
+        "command": "vscode-http.manageCollection",
+        "title": "管理集合"
+      },
+      {
+        "command": "vscode-http.addCollection",
+        "title": "添加集合",
+        "icon": "$(add)"
+      },
+      {
+        "command": "vscode-http.addInterface",
+        "title": "添加接口",
+        "icon": "$(add)"
+      },
+      {
+        "command": "vscode-http.deleteCollection",
+        "title": "删除集合",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "vscode-http.deleteInterface",
+        "title": "删除接口",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
       "view/item/context": [
         {
-          "command": "vscode-http.manageEnvironments",
-          "when": "view == vscode-http.requestTree && viewItem == project"
+          "command": "vscode-http.addCollection",
+          "when": "view == vscode-http.requestTree && viewItem == project",
+          "group": "inline"
         },
         {
-          "command": "vscode-http.setCurrentEnvironment",
-          "when": "view == vscode-http.requestTree && viewItem == project"
+          "command": "vscode-http.addInterface",
+          "when": "view == vscode-http.requestTree && viewItem == collection",
+          "group": "inline"
+        },
+        {
+          "command": "vscode-http.deleteCollection",
+          "when": "view == vscode-http.requestTree && viewItem == collection",
+          "group": "inline"
+        },
+        {
+          "command": "vscode-http.deleteInterface",
+          "when": "view == vscode-http.requestTree && viewItem == interface",
+          "group": "inline"
         }
       ]
     }

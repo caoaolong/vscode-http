@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>环境管理</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px 24px;
+      font-family: var(--vscode-font-family);
+      font-size: 13px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+    }
+    .title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 16px;
+      color: var(--vscode-foreground);
+    }
+    .env-list { margin-bottom: 16px; }
+    .env-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      background: var(--vscode-editor-inactiveSelectionBackground);
+      border-radius: 6px;
+      border: 1px solid var(--vscode-widget-border);
+    }
+    .env-row.current { border-color: var(--vscode-focusBorder); }
+    .env-row input {
+      padding: 6px 10px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .env-row input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .env-name { width: 120px; flex-shrink: 0; }
+    .env-baseUrl { flex: 1; min-width: 0; }
+    .btn {
+      padding: 6px 12px;
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .btn:hover { background: var(--vscode-button-hoverBackground); }
+    .btn-secondary {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+    }
+    .btn-secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .btn-danger {
+      background: transparent;
+      color: var(--vscode-errorForeground);
+    }
+    .btn-danger:hover { background: var(--vscode-inputValidation-errorBackground); }
+    .add-btn { margin-top: 8px; }
+    .project-name-row {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: var(--vscode-editor-inactiveSelectionBackground);
+      border-radius: 6px;
+      border: 1px solid var(--vscode-widget-border);
+    }
+    .project-name-row label {
+      display: block;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 6px;
+    }
+    .project-name-row input {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .project-name-row input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+  </style>
+</head>
+<body>
+  <div class="project-name-row">
+    <label>项目名称</label>
+    <input type="text" id="projectName" placeholder="输入项目名称" />
+  </div>
+  <div class="title" id="title">环境列表</div>
+  <div class="env-list" id="envList"></div>
+  <button class="btn add-btn btn-secondary" id="addEnv">+ 添加环境</button>
+  <script>
+    const vscode = acquireVsCodeApi();
+    let projectId = '';
+    let projectName = '';
+    let environments = [];
+
+    document.getElementById('projectName').onblur = function() {
+      const name = this.value.trim();
+      if (name && name !== projectName) {
+        vscode.postMessage({ type: 'updateProjectName', name });
+      }
+    };
+
+    function render() {
+      const list = document.getElementById('envList');
+      const currentId = window.currentEnvId || '';
+      list.innerHTML = environments.map(env => {
+        const isCurrent = env.id === currentId;
+        return '<div class="env-row' + (isCurrent ? ' current' : '') + '" data-id="' + escapeAttr(env.id) + '">' +
+          '<input type="text" class="env-name" placeholder="环境名称" value="' + escapeAttr(env.name) + '">' +
+          '<input type="text" class="env-baseUrl" placeholder="https://api.example.com" value="' + escapeAttr(env.baseUrl) + '">' +
+          '<button class="btn btn-secondary set-current-btn" data-id="' + escapeAttr(env.id) + '">' + (isCurrent ? '当前' : '设为当前') + '</button>' +
+          '<button class="btn btn-danger delete-btn" data-id="' + escapeAttr(env.id) + '">删除</button>' +
+        '</div>';
+      }).join('');
+
+      list.querySelectorAll('.env-name, .env-baseUrl').forEach(input => {
+        input.onblur = () => {
+          const row = input.closest('.env-row');
+          const id = row?.dataset.id;
+          const nameInput = row?.querySelector('.env-name');
+          const baseUrlInput = row?.querySelector('.env-baseUrl');
+          if (id && nameInput && baseUrlInput) {
+            vscode.postMessage({
+              type: 'updateEnv',
+              envId: id,
+              name: nameInput.value.trim(),
+              baseUrl: baseUrlInput.value.trim().replace(/\/+$/, '')
+            });
+          }
+        };
+      });
+
+      list.querySelectorAll('.set-current-btn').forEach(btn => {
+        btn.onclick = () => vscode.postMessage({ type: 'setCurrent', envId: btn.dataset.id });
+      });
+
+      list.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.onclick = () => vscode.postMessage({ type: 'deleteEnv', envId: btn.dataset.id });
+      });
+    }
+
+    function escapeAttr(s) {
+      if (!s) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    document.getElementById('addEnv').onclick = () => {
+      vscode.postMessage({ type: 'addEnv' });
+    };
+
+    window.addEventListener('message', e => {
+      const msg = e.data;
+      if (msg.type === 'init') {
+        projectId = msg.projectId || '';
+        projectName = msg.projectName || '';
+        environments = msg.environments || [];
+        window.currentEnvId = msg.currentEnvId || '';
+        document.getElementById('projectName').value = projectName;
+        render();
+      } else if (msg.type === 'update') {
+        projectName = msg.projectName ?? projectName;
+        environments = msg.environments || [];
+        window.currentEnvId = msg.currentEnvId || '';
+        document.getElementById('projectName').value = projectName;
+        render();
+      }
+    });
+  </script>
+</body>
+</html>
