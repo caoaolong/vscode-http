@@ -25,6 +25,8 @@ export interface RequestData {
   formData?: FormDataItem[];
   formUrlEncoded?: Array<{ key: string; value: string }>;
   binaryBase64?: string;
+  name?: string;
+  auth?: import('../models/types').AuthConfig;
 }
 
 export interface ResponseData {
@@ -39,9 +41,19 @@ function getHtml(context: vscode.ExtensionContext, webview: vscode.Webview): str
   const htmlPath = path.join(context.extensionPath, 'resources', 'request_editor.html');
   let html = fs.readFileSync(htmlPath, 'utf8');
   const monacoUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'monaco-editor', 'min'));
-  html = html.replace(/\{\{MONACO_URI\}\}/g, monacoUri.toString());
-  const monacoSrc = monacoUri.toString().replace(/\/$/, '');
-  const csp = `default-src 'none'; script-src 'unsafe-inline' ${webview.cspSource} ${monacoSrc}; style-src 'unsafe-inline' ${webview.cspSource}; font-src ${webview.cspSource}; img-src data: ${webview.cspSource}; worker-src blob:; connect-src 'none';`;
+  const monacoUriStr = monacoUri.toString().replace(/\/$/, '');
+  html = html.replace(/\{\{MONACO_URI\}\}/g, monacoUriStr);
+  // CSP: 只加入非空源并规范格式，避免出现无效 source（如空串）导致 "invalid source: '<URL>'" 警告
+  const scriptSrcParts = ["'unsafe-inline'", webview.cspSource?.trim(), monacoUriStr].filter((s) => s != null && s !== '');
+  const csp = [
+    "default-src 'none'",
+    `script-src ${scriptSrcParts.join(' ')}`,
+    `style-src 'unsafe-inline' ${webview.cspSource ?? ''}`,
+    `font-src ${webview.cspSource ?? ''}`,
+    `img-src data: ${webview.cspSource ?? ''}`,
+    "worker-src blob:",
+    "connect-src 'none'",
+  ].join('; ');
   html = html.replace(/\{\{CSP\}\}/g, csp);
   return html;
 }
@@ -91,6 +103,11 @@ function buildRequestBody(data: RequestData): { body: Buffer; contentType?: stri
   }
 }
 
+function getDebugOutputChannel(): vscode.OutputChannel {
+  const name = 'vscode-http';
+  return vscode.window.createOutputChannel(name);
+}
+
 async function sendHttpRequest(data: RequestData): Promise<ResponseData> {
   return new Promise((resolve) => {
     try {
@@ -104,6 +121,26 @@ async function sendHttpRequest(data: RequestData): Promise<ResponseData> {
         if (contentType && !headers['Content-Type']) headers['Content-Type'] = contentType;
         headers['Content-Length'] = String(body.length);
       }
+
+      // 调试日志：最终请求地址与请求体
+      const out = getDebugOutputChannel();
+      out.appendLine(`[HTTP] ${data.method} ${data.url}`);
+      if (body.length > 0) {
+        if (data.bodyType === 'binary') {
+          out.appendLine(`[HTTP] 请求体: (二进制, ${body.length} 字节)`);
+        } else {
+          const maxLog = 2048;
+          const bodyPreview =
+            body.length <= maxLog
+              ? body.toString('utf8')
+              : body.toString('utf8', 0, maxLog) + `\n... (共 ${body.length} 字节，已截断)`;
+          out.appendLine('[HTTP] 请求体:');
+          out.appendLine(bodyPreview);
+        }
+      } else {
+        out.appendLine('[HTTP] 请求体: (无)');
+      }
+      out.appendLine('');
 
       const opts: https.RequestOptions = {
         hostname: url.hostname,
@@ -180,34 +217,57 @@ export function createRequestEditorPanel(
   panel.webview.html = getHtml(context, panel.webview);
 
   panel.webview.onDidReceiveMessage(
-    async (msg) => {
-      if (msg.type === 'setCurrentEnvironment') {
-        onEnvChange(project.id, msg.envId);
-      } else if (msg.type === 'sendRequest') {
-        const result = await sendHttpRequest({
-          url: msg.url,
-          method: msg.method,
-          headers: msg.headers || {},
-          bodyType: msg.bodyType || 'json',
-          body: msg.body || '',
-          formData: msg.formData,
-          formUrlEncoded: msg.formUrlEncoded,
-          binaryBase64: msg.binaryBase64,
-        });
-        panel.webview.postMessage({ type: 'response', ...result });
-      } else if (msg.type === 'saveRequest') {
-        const data: RequestData = {
-          url: msg.url,
-          method: msg.method,
-          headers: msg.headers || {},
-          bodyType: msg.bodyType || 'json',
-          body: msg.body || '',
-          formData: msg.formData,
-          formUrlEncoded: msg.formUrlEncoded,
-          binaryBase64: msg.binaryBase64,
+    (msg) => {
+      try {
+        if (msg.type === 'setCurrentEnvironment') {
+          onEnvChange(project.id, msg.envId);
+        } else if (msg.type === 'sendRequest') {
+          sendHttpRequest({
+            url: msg.url,
+            method: msg.method,
+            headers: msg.headers || {},
+            bodyType: msg.bodyType || 'json',
+            body: msg.body || '',
+            formData: msg.formData,
+            formUrlEncoded: msg.formUrlEncoded,
+            binaryBase64: msg.binaryBase64,
+          }).then((result) => {
+            panel.webview.postMessage({ type: 'response', ...result });
+          }).catch((err) => {
+            panel.webview.postMessage({
+              type: 'response',
+              status: 0,
+              statusText: '',
+              headers: {} as Record<string, string>,
+              body: '',
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        } else if (msg.type === 'saveRequest') {
+          const data: RequestData = {
+            url: msg.url,
+            method: msg.method,
+            headers: msg.headers || {},
+            bodyType: msg.bodyType || 'json',
+            body: msg.body || '',
+            formData: msg.formData,
+            formUrlEncoded: msg.formUrlEncoded,
+            binaryBase64: msg.binaryBase64,
+            name: msg.name,
+            auth: msg.auth,
+          };
+          onSave(iface, data);
+          vscode.window.showInformationMessage('已保存');
+        }
+      } catch (err) {
+        const errorResult = {
+          status: 0,
+          statusText: '',
+          headers: {} as Record<string, string>,
+          body: '',
+          error: err instanceof Error ? err.message : String(err),
         };
-        onSave(iface, data);
-        vscode.window.showInformationMessage('已保存');
+        panel.webview.postMessage({ type: 'response', ...errorResult });
       }
     },
     undefined,
@@ -222,6 +282,7 @@ export function createRequestEditorPanel(
   panel.webview.postMessage({
     type: 'init',
     theme: getMonacoTheme(),
+    name: iface.name || '',
     baseUrl: baseUrl ?? '',
     path: pathFromUrl,
     environments,
@@ -233,6 +294,7 @@ export function createRequestEditorPanel(
     formData: iface.formData || [],
     formUrlEncoded: iface.formUrlEncoded || [],
     binaryBase64: iface.binaryBase64 || '',
+    auth: iface.auth,
   });
 
   context.subscriptions.push(

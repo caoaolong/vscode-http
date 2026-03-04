@@ -47,6 +47,8 @@ export function activate(context: vscode.ExtensionContext) {
 						formData: data.formData,
 						formUrlEncoded: data.formUrlEncoded,
 						binaryBase64: data.binaryBase64,
+						name: data.name,
+						auth: data.auth,
 					});
 				},
 				(projectId, envId) => {
@@ -104,7 +106,7 @@ export function activate(context: vscode.ExtensionContext) {
 					createRequestEditorPanel(context, iface, baseUrl, pathFromUrl, environments, currentEnvId, p,
 						(i, data) => treeProvider.updateInterface(i, {
 							url: data.url, method: data.method, headers: data.headers, requestBody: data.body,
-							bodyType: data.bodyType, formData: data.formData, formUrlEncoded: data.formUrlEncoded, binaryBase64: data.binaryBase64,
+							bodyType: data.bodyType, formData: data.formData, formUrlEncoded: data.formUrlEncoded, binaryBase64: data.binaryBase64, name: data.name, auth: data.auth,
 						}),
 						(projectId, envId) => {
 							const px = treeProvider.getProjects().find((pr) => pr.id === projectId);
@@ -124,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
 						createRequestEditorPanel(context, iface, baseUrl, pathFromUrl, environments, currentEnvId, p,
 							(i, data) => treeProvider.updateInterface(i, {
 								url: data.url, method: data.method, headers: data.headers, requestBody: data.body,
-								bodyType: data.bodyType, formData: data.formData, formUrlEncoded: data.formUrlEncoded, binaryBase64: data.binaryBase64,
+								bodyType: data.bodyType, formData: data.formData, formUrlEncoded: data.formUrlEncoded, binaryBase64: data.binaryBase64, name: data.name, auth: data.auth,
 							}),
 							(projectId, envId) => {
 								const px = treeProvider.getProjects().find((pr) => pr.id === projectId);
@@ -158,7 +160,7 @@ export function activate(context: vscode.ExtensionContext) {
 				createRequestEditorPanel(context, iface, baseUrl, pathFromUrl, environments, currentEnvId, project,
 					(i, data) => treeProvider.updateInterface(i, {
 						url: data.url, method: data.method, headers: data.headers, requestBody: data.body,
-						bodyType: data.bodyType, formData: data.formData, formUrlEncoded: data.formUrlEncoded, binaryBase64: data.binaryBase64,
+						bodyType: data.bodyType, formData: data.formData, formUrlEncoded: data.formUrlEncoded, binaryBase64: data.binaryBase64, name: data.name, auth: data.auth,
 					}),
 					(projectId, envId) => {
 						const p = treeProvider.getProjects().find((pr) => pr.id === projectId);

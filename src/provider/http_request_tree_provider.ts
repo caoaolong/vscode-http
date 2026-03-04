@@ -16,21 +16,23 @@ function normalizeUrl(url: string): string {
   return url.replace(/\/+$/, '');
 }
 
-/** 从完整 url 中提取路径（去掉 baseUrl 前缀） */
+/** 从完整 url 中提取路径（去掉 baseUrl 前缀），保留 query 参数 */
 function getPathFromUrl(url: string, baseUrl?: string): string {
   try {
     const u = new URL(url);
     const path = u.pathname || '/';
+    const search = u.search || '';
     if (baseUrl) {
       const base = normalizeUrl(baseUrl);
       const basePath = new URL(base).pathname.replace(/\/+$/, '');
       if (basePath && basePath !== '/') {
         if (path === basePath || path.startsWith(basePath + '/')) {
-          return path === basePath ? '/' : path.slice(basePath.length) || '/';
+          const pathOnly = path === basePath ? '/' : path.slice(basePath.length) || '/';
+          return pathOnly + search;
         }
       }
     }
-    return path;
+    return path + search;
   } catch {
     return url;
   }
@@ -454,9 +456,13 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     formData?: import('../models/types').FormDataItem[];
     formUrlEncoded?: Array<{ key: string; value: string }>;
     binaryBase64?: string;
+    name?: string;
+    auth?: import('../models/types').AuthConfig;
   }): void {
     iface.url = data.url;
     if (data.method) iface.method = data.method;
+    if (data.name !== undefined) iface.name = data.name;
+    if (data.auth !== undefined) iface.auth = data.auth;
     if (data.headers !== undefined) iface.headers = data.headers;
     if (data.requestBody !== undefined) iface.requestBody = data.requestBody;
     if (data.bodyType !== undefined) iface.bodyType = data.bodyType;

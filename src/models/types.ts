@@ -35,6 +35,20 @@ export interface FormDataItem {
   fileBase64?: string;
 }
 
+/** 授权配置，用于生成 Authorization 等请求头 */
+export interface AuthConfig {
+  enabled: boolean;
+  type: 'bearer' | 'basic' | 'oauth1' | 'oauth2' | 'apiKey' | 'jwt';
+  token?: string;
+  username?: string;
+  password?: string;
+  consumerKey?: string;
+  consumerSecret?: string;
+  accessToken?: string;
+  keyName?: string;
+  value?: string;
+}
+
 export interface Interface {
   id: string;
   name: string;
@@ -48,4 +62,5 @@ export interface Interface {
   formData?: FormDataItem[];
   formUrlEncoded?: Array<{ key: string; value: string }>;
   binaryBase64?: string;
+  auth?: AuthConfig;
 }

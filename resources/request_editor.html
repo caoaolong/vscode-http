@@ -7,6 +7,14 @@
   <title>HTTP 请求</title>
   <style>
     * { box-sizing: border-box; }
+    html, body {
+      overflow: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    html::-webkit-scrollbar, body::-webkit-scrollbar {
+      display: none;
+    }
     body {
       margin: 0;
       padding: 20px 24px;
@@ -75,6 +83,34 @@
     }
     .url-input.with-base { border-radius: 0 6px 6px 0; border-left: none; }
     .url-input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .req-name-label { flex: 0 0 40px; font-size: 12px; color: var(--vscode-descriptionForeground); }
+    .req-name-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .req-name-input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .auth-section { margin-bottom: 24px; }
+    .auth-row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .auth-toggle-wrap { display: flex; align-items: center; gap: 8px; }
+    .auth-type-select {
+      min-width: 140px; padding: 6px 10px;
+      background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border); border-radius: 6px; font-size: 12px;
+    }
+    .auth-params { margin-top: 10px; }
+    .auth-params input {
+      padding: 6px 10px;
+      background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border); border-radius: 6px; font-size: 12px;
+    }
+    .auth-params input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .auth-params .auth-inline { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .auth-params .auth-inline label { min-width: 70px; font-size: 12px; color: var(--vscode-descriptionForeground); }
     .btn {
       padding: 8px 16px;
       background: var(--vscode-button-background);
@@ -92,13 +128,13 @@
       color: var(--vscode-button-secondaryForeground);
     }
     .btn-secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
-    .header-row, .form-row {
+    .header-row, .form-row, .query-param-row {
       display: flex;
       gap: 10px;
       margin-bottom: 8px;
       align-items: center;
     }
-    .header-row input, .form-row input {
+    .header-row input, .form-row input, .query-param-row input {
       padding: 6px 10px;
       background: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
@@ -106,7 +142,7 @@
       border-radius: 6px;
       font-size: 12px;
     }
-    .header-row input:focus, .form-row input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .header-row input:focus, .form-row input:focus, .query-param-row input:focus { outline: none; border-color: var(--vscode-focusBorder); }
     .form-row input:first-child { flex: 0 0 120px; }
     .header-key-wrap { position: relative; flex: 0 0 180px; }
     .header-key-wrap .header-key { width: 100%; }
@@ -124,7 +160,7 @@
       transition: background 0.1s;
     }
     .header-dropdown-option:hover { background: var(--vscode-list-hoverBackground); }
-    .form-row input:nth-child(2), .header-row .header-value { flex: 1; }
+    .form-row input:nth-child(2), .header-row .header-value, .query-param-row .query-param-value { flex: 1; }
     .form-row .type-select {
       width: 80px; flex: 0 0 80px; padding: 6px 10px;
       background: var(--vscode-input-background);
@@ -209,6 +245,23 @@
     }
     .response-status.success { color: var(--vscode-testing-iconPassed); }
     .response-status.error { color: var(--vscode-errorForeground); }
+    .request-full-wrap { margin-bottom: 14px; }
+    .request-full-content {
+      font-size: 11px; padding: 10px; margin: 0;
+      background: var(--vscode-editor-background);
+      border-radius: 6px; max-height: 280px; overflow-y: auto;
+      border: 1px solid var(--vscode-input-border);
+      white-space: pre-wrap; word-break: break-all;
+      line-height: 1.45;
+    }
+    .response-headers-wrap { margin-bottom: 10px; }
+    .response-headers {
+      font-size: 11px; padding: 8px; margin: 0;
+      background: var(--vscode-editor-background);
+      border-radius: 6px; max-height: 160px; overflow-y: auto;
+      border: 1px solid var(--vscode-input-border);
+      white-space: pre-wrap; word-break: break-all;
+    }
     .response-body {
       white-space: pre-wrap;
       word-break: break-all;
@@ -239,11 +292,71 @@
       min-height: 240px;
       max-height: 360px;
     }
+    .response-body-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .response-body-header .response-body-label { font-size: 11px; color: var(--vscode-descriptionForeground); }
+    .response-body-wrap { position: relative; }
+    .response-body-wrap .btn-fullscreen {
+      padding: 4px 10px; font-size: 11px; cursor: pointer;
+      background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);
+      border: none; border-radius: 4px;
+    }
+    .response-body-wrap .btn-fullscreen:hover { opacity: 0.9; }
+    #responseBodyFullscreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--vscode-editor-background);
+      flex-direction: column;
+      padding: 12px;
+    }
+    #responseBodyFullscreen.show { display: flex; }
+    #responseBodyFullscreen .fullscreen-toolbar {
+      flex-shrink: 0;
+      display: flex; justify-content: flex-end; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    #responseBodyFullscreen .fullscreen-close {
+      padding: 6px 14px;
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    #responseBodyFullscreen .fullscreen-close:hover { opacity: 0.9; }
+    #responseBodyFullscreen .fullscreen-body {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 12px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+      font-family: var(--vscode-editor-font-family);
+      line-height: 1.5;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    #responseBodyFullscreen .fullscreen-body::-webkit-scrollbar { display: none; }
+    .scrollbar-hidden {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .scrollbar-hidden::-webkit-scrollbar { display: none; }
   </style>
 </head>
 <body>
   <div class="section">
     <div class="section-title">请求</div>
+    <div class="row">
+      <label class="req-name-label">名称</label>
+      <input type="text" class="req-name-input" id="requestName" placeholder="请求名称" />
+    </div>
     <div class="row">
       <select class="method-select" id="method">
         <option value="GET">GET</option>
@@ -258,6 +371,62 @@
       </div>
       <button class="btn" id="sendBtn">发送</button>
       <button class="btn btn-secondary" id="saveBtn">保存</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">请求参数（Query，顺序会保留）</div>
+    <div id="queryParamsRows"></div>
+    <div class="header-add-actions">
+      <button class="btn add-btn btn-secondary" id="addQueryParam">+ 添加参数</button>
+    </div>
+  </div>
+
+  <div class="section auth-section">
+    <div class="section-title">授权</div>
+    <div class="auth-row">
+      <div class="auth-toggle-wrap">
+        <input type="checkbox" id="authEnabled" />
+        <label for="authEnabled">启用授权</label>
+      </div>
+      <select class="auth-type-select" id="authType">
+        <option value="bearer">Bearer Token</option>
+        <option value="jwt">JWT Bearer</option>
+        <option value="basic">Basic Auth</option>
+        <option value="oauth2">OAuth 2.0</option>
+        <option value="apiKey">Api Key</option>
+        <option value="oauth1">OAuth 1.0</option>
+      </select>
+    </div>
+    <div class="auth-params" id="authParams">
+      <div class="auth-inline auth-bearer auth-jwt auth-oauth2">
+        <label>Token</label>
+        <input type="password" id="authToken" placeholder="Token" style="flex:1;min-width:0" />
+      </div>
+      <div class="auth-inline auth-basic" style="display:none">
+        <label>用户名</label>
+        <input type="text" id="authUsername" placeholder="用户名" style="flex:1;min-width:0" />
+      </div>
+      <div class="auth-inline auth-basic" style="display:none">
+        <label>密码</label>
+        <input type="password" id="authPassword" placeholder="密码" style="flex:1;min-width:0" />
+      </div>
+      <div class="auth-inline auth-apiKey" style="display:none">
+        <label>Header 名</label>
+        <input type="text" id="authKeyName" placeholder="如 X-API-Key" style="flex:1;min-width:0" />
+      </div>
+      <div class="auth-inline auth-apiKey" style="display:none">
+        <label>值</label>
+        <input type="password" id="authKeyValue" placeholder="值" style="flex:1;min-width:0" />
+      </div>
+      <div class="auth-inline auth-oauth1" style="display:none">
+        <label>Consumer Key</label>
+        <input type="text" id="authConsumerKey" placeholder="Consumer Key" style="flex:1;min-width:0" />
+      </div>
+      <div class="auth-inline auth-oauth1" style="display:none">
+        <label>Consumer Secret</label>
+        <input type="password" id="authConsumerSecret" placeholder="Consumer Secret" style="flex:1;min-width:0" />
+      </div>
     </div>
   </div>
 
@@ -325,9 +494,28 @@
   <div class="section">
     <div class="section-title">响应</div>
     <div class="response-area">
+      <details class="request-full-wrap" id="requestFullWrap">
+        <summary style="font-size:11px;margin-bottom:6px;color:var(--vscode-descriptionForeground);cursor:pointer">完整请求</summary>
+        <pre class="request-full-content scrollbar-hidden" id="requestFullContent">发送请求后将显示完整请求内容</pre>
+      </details>
       <div class="response-status" id="responseStatus">未发送</div>
-      <div style="font-size:11px;margin-bottom:8px;color:var(--vscode-descriptionForeground)">响应体</div>
-      <pre class="response-body" id="responseBody">发送请求后显示响应</pre>
+      <details class="response-headers-wrap" id="responseHeadersWrap" style="display:none">
+        <summary style="font-size:11px;margin-bottom:6px;color:var(--vscode-descriptionForeground);cursor:pointer">响应头</summary>
+        <pre class="response-headers scrollbar-hidden" id="responseHeaders"></pre>
+      </details>
+      <div class="response-body-wrap">
+        <div class="response-body-header">
+          <span class="response-body-label">响应体</span>
+          <button type="button" class="btn-fullscreen" id="responseBodyFullscreenBtn">全屏查看</button>
+        </div>
+        <pre class="response-body scrollbar-hidden" id="responseBody">发送请求后显示响应</pre>
+      </div>
+      <div id="responseBodyFullscreen">
+        <div class="fullscreen-toolbar">
+          <button type="button" class="fullscreen-close" id="responseBodyFullscreenClose">退出全屏</button>
+        </div>
+        <pre class="fullscreen-body scrollbar-hidden" id="responseBodyFullscreenContent"></pre>
+      </div>
     </div>
   </div>
   </div>
@@ -344,10 +532,136 @@
     const methodSelect = document.getElementById('method');
     const urlEnvSelect = document.getElementById('urlEnvSelect');
     const urlPath = document.getElementById('urlPath');
+    const requestNameEl = document.getElementById('requestName');
     let environments = [];
     const headersEl = document.getElementById('headers');
+    const queryParamsEl = document.getElementById('queryParamsRows');
+
+    const authTypeSelect = document.getElementById('authType');
+    const authEnabledCheck = document.getElementById('authEnabled');
+    function updateAuthParamsVisibility() {
+      const type = authTypeSelect.value;
+      document.querySelectorAll('.auth-params .auth-inline').forEach(el => {
+        el.style.display = el.classList.contains('auth-' + type) ? '' : 'none';
+      });
+    }
+    authTypeSelect.onchange = updateAuthParamsVisibility;
+    authEnabledCheck.onchange = () => {
+      document.getElementById('authParams').style.opacity = authEnabledCheck.checked ? '1' : '0.5';
+    };
+    updateAuthParamsVisibility();
+
+    function getAuthConfig() {
+      if (!authEnabledCheck.checked) return { enabled: false, type: authTypeSelect.value };
+      const type = authTypeSelect.value;
+      const cfg = { enabled: true, type: type };
+      if (type === 'bearer' || type === 'jwt' || type === 'oauth2') {
+        cfg.token = document.getElementById('authToken').value.trim();
+        if (type === 'oauth2') cfg.accessToken = cfg.token;
+      } else if (type === 'basic') {
+        cfg.username = document.getElementById('authUsername').value.trim();
+        cfg.password = document.getElementById('authPassword').value;
+      } else if (type === 'apiKey') {
+        cfg.keyName = document.getElementById('authKeyName').value.trim() || 'X-API-Key';
+        cfg.value = document.getElementById('authKeyValue').value;
+      } else if (type === 'oauth1') {
+        cfg.consumerKey = document.getElementById('authConsumerKey').value.trim();
+        cfg.consumerSecret = document.getElementById('authConsumerSecret').value;
+      }
+      return cfg;
+    }
+
+    function getAuthHeaders() {
+      const cfg = getAuthConfig();
+      if (!cfg.enabled) return {};
+      const type = cfg.type;
+      if (type === 'bearer' || type === 'jwt' || type === 'oauth2') {
+        const t = (cfg.token || cfg.accessToken || '').trim();
+        return t ? { 'Authorization': 'Bearer ' + t } : {};
+      }
+      if (type === 'basic' && cfg.username) {
+        const raw = cfg.username + ':' + (cfg.password || '');
+        try {
+          return { 'Authorization': 'Basic ' + btoa(unescape(encodeURIComponent(raw))) };
+        } catch (e) {
+          return {};
+        }
+      }
+      if (type === 'apiKey' && cfg.keyName && cfg.value !== undefined) {
+        return { [cfg.keyName]: cfg.value };
+      }
+      if (type === 'oauth1') {
+        return {};
+      }
+      return {};
+    }
+
+    function applyAuthConfig(cfg) {
+      if (!cfg || !cfg.enabled) {
+        authEnabledCheck.checked = false;
+        document.getElementById('authParams').style.opacity = '0.5';
+        return;
+      }
+      authEnabledCheck.checked = true;
+      document.getElementById('authParams').style.opacity = '1';
+      authTypeSelect.value = cfg.type || 'bearer';
+      updateAuthParamsVisibility();
+      if (cfg.token !== undefined) document.getElementById('authToken').value = cfg.token;
+      if (cfg.accessToken !== undefined) document.getElementById('authToken').value = cfg.accessToken;
+      if (cfg.username !== undefined) document.getElementById('authUsername').value = cfg.username;
+      if (cfg.password !== undefined) document.getElementById('authPassword').value = cfg.password;
+      if (cfg.keyName !== undefined) document.getElementById('authKeyName').value = cfg.keyName;
+      if (cfg.value !== undefined) document.getElementById('authKeyValue').value = cfg.value;
+      if (cfg.consumerKey !== undefined) document.getElementById('authConsumerKey').value = cfg.consumerKey;
+      if (cfg.consumerSecret !== undefined) document.getElementById('authConsumerSecret').value = cfg.consumerSecret;
+    }
     const responseStatus = document.getElementById('responseStatus');
     const responseBody = document.getElementById('responseBody');
+    const responseHeadersEl = document.getElementById('responseHeaders');
+    const responseHeadersWrap = document.getElementById('responseHeadersWrap');
+    const requestFullContent = document.getElementById('requestFullContent');
+    const sendBtn = document.getElementById('sendBtn');
+
+    function formatFullRequest(payload) {
+      const lines = [payload.method + ' ' + payload.url, ''];
+      const headers = payload.headers || {};
+      Object.entries(headers).forEach(([k, v]) => { lines.push(k + ': ' + (v || '')); });
+      lines.push('');
+      let bodyStr = '';
+      switch (payload.bodyType) {
+        case 'form-data':
+          bodyStr = (payload.formData || []).map(i => i.key + (i.type === 'file' ? '=[文件]' : '=' + (i.value || ''))).join('\n') || '(无)';
+          break;
+        case 'x-www-form-urlencoded': {
+          const params = (payload.formUrlEncoded || []).filter(i => i.key).map(i => i.key + '=' + encodeURIComponent(i.value || ''));
+          bodyStr = params.join('&') || '(无)';
+          break;
+        }
+        case 'binary':
+          bodyStr = payload.binaryBase64 ? '(二进制, base64 长度 ' + payload.binaryBase64.length + ')' : '(无)';
+          break;
+        default:
+          bodyStr = (payload.body && payload.body.trim()) || '(无)';
+      }
+      lines.push(bodyStr);
+      return lines.join('\n');
+    }
+
+    function setSendLoading(loading) {
+      sendBtn.disabled = loading;
+      sendBtn.textContent = loading ? '发送中…' : '发送';
+    }
+
+    function formatResponseBody(bodyStr) {
+      if (!bodyStr || bodyStr === '(空)') return bodyStr || '(空)';
+      const trimmed = bodyStr.trim();
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          return JSON.stringify(JSON.parse(bodyStr), null, 2);
+        } catch (_) { return bodyStr; }
+        }
+      return bodyStr;
+    }
 
     function getBodyPanels() {
       return {
@@ -397,6 +711,52 @@
         sel.appendChild(opt);
       });
     })();
+
+    function addQueryParamRow(key = '', value = '') {
+      const row = document.createElement('div');
+      row.className = 'query-param-row';
+      row.innerHTML = '<input type="text" placeholder="参数名" value="' + escapeHtml(key) + '"><input type="text" class="query-param-value" placeholder="值" value="' + escapeHtml(value) + '"><button class="btn remove-btn" type="button">删除</button>';
+      row.querySelector('.remove-btn').onclick = () => row.remove();
+      queryParamsEl.appendChild(row);
+    }
+
+    function collectQueryParams() {
+      const list = [];
+      queryParamsEl.querySelectorAll('.query-param-row').forEach(r => {
+        const inputs = r.querySelectorAll('input');
+        const k = inputs[0] ? inputs[0].value.trim() : '';
+        if (k) list.push({ key: k, value: inputs[1] ? inputs[1].value : '' });
+      });
+      return list;
+    }
+
+    /** 解析 URL 中 query 并保持参数顺序 */
+    function parseQueryFromPath(pathStr) {
+      const pathOnly = pathStr.includes('?') ? pathStr.split('?')[0] : pathStr;
+      const queryStr = pathStr.includes('?') ? pathStr.slice(pathStr.indexOf('?') + 1) : '';
+      const params = [];
+      if (queryStr) {
+        queryStr.split('&').forEach(pair => {
+          const eq = pair.indexOf('=');
+          const key = eq >= 0 ? decodeURIComponent(pair.slice(0, eq).replace(/\+/g, ' ')) : decodeURIComponent(pair.replace(/\+/g, ' '));
+          const value = eq >= 0 ? decodeURIComponent(pair.slice(eq + 1).replace(/\+/g, ' ')) : '';
+          params.push({ key, value });
+        });
+      }
+      return { pathOnly, params };
+    }
+
+    function applyPathAndQuery(pathStr) {
+      if (!pathStr) {
+        urlPath.value = '';
+        queryParamsEl.innerHTML = '';
+        return;
+      }
+      const { pathOnly, params } = parseQueryFromPath(pathStr);
+      urlPath.value = pathOnly;
+      queryParamsEl.innerHTML = '';
+      params.forEach(p => addQueryParamRow(p.key, p.value));
+    }
 
     function addHeaderRow(key = '', value = '') {
       const row = document.createElement('div');
@@ -519,7 +879,13 @@
     }
 
     function getFullUrl() {
-      const pathVal = urlPath.value.trim();
+      let pathVal = urlPath.value.trim();
+      const params = collectQueryParams();
+      if (params.length > 0) {
+        const pathOnly = pathVal.includes('?') ? pathVal.split('?')[0] : pathVal;
+        const query = params.map(p => encodeURIComponent(p.key) + '=' + encodeURIComponent(p.value)).join('&');
+        pathVal = pathOnly + (query ? '?' + query : '');
+      }
       const baseUrl = getSelectedBaseUrl();
       if (baseUrl) {
         const base = baseUrl.replace(/\/+$/, '');
@@ -530,10 +896,15 @@
     }
 
     function getRequestPayload() {
+      const headers = getHeaders();
+      const authHeaders = getAuthHeaders();
+      for (const k in authHeaders) headers[k] = authHeaders[k];
       const payload = {
         url: getFullUrl(),
         method: methodSelect.value,
-        headers: getHeaders(),
+        headers: headers,
+        name: requestNameEl.value.trim(),
+        auth: getAuthConfig(),
         bodyType: currentBodyType,
         body: '',
         formData: [],
@@ -555,6 +926,8 @@
       }
       return payload;
     }
+
+    document.getElementById('addQueryParam').onclick = () => addQueryParamRow();
 
     document.getElementById('addHeader').onclick = () => {
       const key = document.getElementById('headerPresetSelect').value.trim();
@@ -596,13 +969,51 @@
       if (envId) vscode.postMessage({ type: 'setCurrentEnvironment', envId });
     };
 
-    document.getElementById('sendBtn').onclick = () => {
-      vscode.postMessage({ type: 'sendRequest', ...getRequestPayload() });
+    sendBtn.onclick = () => {
+      const url = getFullUrl();
+      if (!url || !url.trim()) {
+        responseStatus.textContent = '请填写请求 URL';
+        responseStatus.className = 'response-status error';
+        return;
+      }
+      try {
+        new URL(url);
+      } catch (_) {
+        responseStatus.textContent = 'URL 格式无效';
+        responseStatus.className = 'response-status error';
+        return;
+      }
+      setSendLoading(true);
+      responseStatus.textContent = '发送中…';
+      responseStatus.className = 'response-status';
+      const payload = getRequestPayload();
+      requestFullContent.textContent = formatFullRequest(payload);
+      requestFullContent.parentElement.open = true;
+      vscode.postMessage({ type: 'sendRequest', ...payload });
     };
 
     document.getElementById('saveBtn').onclick = () => {
       vscode.postMessage({ type: 'saveRequest', ...getRequestPayload() });
     };
+
+    (function initResponseBodyFullscreen() {
+      const overlay = document.getElementById('responseBodyFullscreen');
+      const content = document.getElementById('responseBodyFullscreenContent');
+      const btn = document.getElementById('responseBodyFullscreenBtn');
+      const closeBtn = document.getElementById('responseBodyFullscreenClose');
+      function openFullscreen() {
+        content.textContent = responseBody.textContent || '(空)';
+        overlay.classList.add('show');
+      }
+      function closeFullscreen() {
+        overlay.classList.remove('show');
+      }
+      btn.onclick = openFullscreen;
+      closeBtn.onclick = closeFullscreen;
+      overlay.onclick = function(e) {
+        if (e.target === overlay) closeFullscreen();
+      };
+    })();
 
     let pendingInit = null;
 
@@ -643,8 +1054,10 @@
           urlPath.classList.remove('with-base');
           urlPath.placeholder = 'https://api.example.com/path';
         }
-        urlPath.value = m.path || '';
+        applyPathAndQuery(m.path || '');
+        if (requestNameEl) requestNameEl.value = m.name || '';
         methodSelect.value = m.method || 'GET';
+        applyAuthConfig(m.auth);
         switchBodyType(m.bodyType || 'json');
         const bodyStr = m.body || '';
         setEditorValue('json', bodyStr);
@@ -679,8 +1092,10 @@
           urlPath.classList.remove('with-base');
           urlPath.placeholder = 'https://api.example.com/path';
         }
-        urlPath.value = msg.path || '';
+        applyPathAndQuery(msg.path || '');
+        if (requestNameEl) requestNameEl.value = msg.name || '';
         methodSelect.value = msg.method || 'GET';
+        applyAuthConfig(msg.auth);
         switchBodyType(msg.bodyType || 'json');
         const bodyStr = msg.body || '';
         setEditorValue('json', bodyStr);
@@ -701,14 +1116,22 @@
       } else if (msg.type === 'theme') {
         applyMonacoTheme(msg.theme);
       } else if (msg.type === 'response') {
+        setSendLoading(false);
         if (msg.error) {
           responseStatus.textContent = '错误: ' + msg.error;
           responseStatus.className = 'response-status error';
+          responseHeadersWrap.style.display = 'none';
         } else {
           responseStatus.textContent = msg.status + ' ' + msg.statusText;
           responseStatus.className = 'response-status ' + (msg.status >= 200 && msg.status < 300 ? 'success' : 'error');
+          if (msg.headers && Object.keys(msg.headers).length > 0) {
+            responseHeadersWrap.style.display = 'block';
+            responseHeadersEl.textContent = Object.entries(msg.headers).map(([k, v]) => k + ': ' + v).join('\n');
+          } else {
+            responseHeadersWrap.style.display = 'none';
+          }
         }
-        responseBody.textContent = msg.body || '(空)';
+        responseBody.textContent = formatResponseBody(msg.body || '(空)');
       }
     });
   </script>
