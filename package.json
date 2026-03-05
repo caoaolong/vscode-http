@@ -61,6 +61,11 @@
         "command": "vscode-http.deleteInterface",
         "title": "删除接口",
         "icon": "$(trash)"
+      },
+      {
+        "command": "vscode-http.deleteInstance",
+        "title": "删除实例",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -83,6 +88,11 @@
         {
           "command": "vscode-http.deleteInterface",
           "when": "view == vscode-http.requestTree && viewItem == interface",
+          "group": "inline"
+        },
+        {
+          "command": "vscode-http.deleteInstance",
+          "when": "view == vscode-http.requestTree && viewItem == instance",
           "group": "inline"
         }
       ]

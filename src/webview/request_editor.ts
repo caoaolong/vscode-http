@@ -3,7 +3,7 @@ import * as https from 'https';
 import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { Interface, Environment } from '../models/types';
+import type { Interface, Environment, RequestSnapshot, ResponseSnapshot } from '../models/types';
 import { tryReveal, registerPanel } from './panel_registry';
 
 export type BodyType = 'form-data' | 'x-www-form-urlencoded' | 'json' | 'xml' | 'raw' | 'binary' | 'graphql';
@@ -201,7 +201,8 @@ export function createRequestEditorPanel(
   currentEnvId: string | undefined,
   project: { id: string },
   onSave: (iface: Interface, data: RequestData) => void,
-  onEnvChange: (projectId: string, envId: string) => void
+  onEnvChange: (projectId: string, envId: string) => void,
+  onSaveAsInstance?: (iface: Interface, name: string, requestSnapshot: RequestSnapshot, responseSnapshot: ResponseSnapshot) => void
 ): void {
   const panelId = REQUEST_PANEL_PREFIX + iface.id;
   if (tryReveal(panelId)) return;
@@ -258,6 +259,38 @@ export function createRequestEditorPanel(
           };
           onSave(iface, data);
           vscode.window.showInformationMessage('已保存');
+        } else if (msg.type === 'saveAsInstance' && onSaveAsInstance) {
+          const rawReq = msg.requestPayload as RequestData | undefined;
+          const rawRes = msg.responsePayload as ResponseData | undefined;
+          if (!rawReq || !rawRes) {
+            vscode.window.showWarningMessage('缺少请求或响应数据');
+            return;
+          }
+          vscode.window.showInputBox({
+            prompt: '输入本实例的名称',
+            placeHolder: '例如：成功响应示例、测试用例',
+          }).then((name) => {
+            if (name === undefined) return;
+            const requestSnapshot: RequestSnapshot = {
+              url: rawReq.url,
+              method: rawReq.method,
+              headers: rawReq.headers,
+              bodyType: rawReq.bodyType,
+              body: rawReq.body,
+              formData: rawReq.formData,
+              formUrlEncoded: rawReq.formUrlEncoded,
+              binaryBase64: rawReq.binaryBase64,
+              auth: rawReq.auth,
+            };
+            const responseSnapshot: ResponseSnapshot = {
+              status: rawRes.status,
+              statusText: rawRes.statusText,
+              headers: rawRes.headers,
+              body: rawRes.body,
+              error: rawRes.error,
+            };
+            onSaveAsInstance(iface, name.trim(), requestSnapshot, responseSnapshot);
+          });
         }
       } catch (err) {
         const errorResult = {

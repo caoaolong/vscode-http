@@ -371,11 +371,12 @@
       </div>
       <button class="btn" id="sendBtn">发送</button>
       <button class="btn btn-secondary" id="saveBtn">保存</button>
+      <button class="btn btn-secondary" id="saveAsInstanceBtn">保存为实例</button>
     </div>
   </div>
 
   <div class="section">
-    <div class="section-title">请求参数（Query，顺序会保留）</div>
+    <div class="section-title">请求参数</div>
     <div id="queryParamsRows"></div>
     <div class="header-add-actions">
       <button class="btn add-btn btn-secondary" id="addQueryParam">+ 添加参数</button>
@@ -618,6 +619,8 @@
     const responseStatus = document.getElementById('responseStatus');
     const responseBody = document.getElementById('responseBody');
     const responseHeadersEl = document.getElementById('responseHeaders');
+    /** 最近一次响应的完整数据，用于「保存为实例」 */
+    let lastResponsePayload = null;
     const responseHeadersWrap = document.getElementById('responseHeadersWrap');
     const requestFullContent = document.getElementById('requestFullContent');
     const sendBtn = document.getElementById('sendBtn');
@@ -1121,19 +1124,33 @@
           responseStatus.textContent = '错误: ' + msg.error;
           responseStatus.className = 'response-status error';
           responseHeadersWrap.style.display = 'none';
+      } else {
+        responseStatus.textContent = msg.status + ' ' + msg.statusText;
+        responseStatus.className = 'response-status ' + (msg.status >= 200 && msg.status < 300 ? 'success' : 'error');
+        if (msg.headers && Object.keys(msg.headers).length > 0) {
+          responseHeadersWrap.style.display = 'block';
+          responseHeadersEl.textContent = Object.entries(msg.headers).map(([k, v]) => k + ': ' + v).join('\n');
         } else {
-          responseStatus.textContent = msg.status + ' ' + msg.statusText;
-          responseStatus.className = 'response-status ' + (msg.status >= 200 && msg.status < 300 ? 'success' : 'error');
-          if (msg.headers && Object.keys(msg.headers).length > 0) {
-            responseHeadersWrap.style.display = 'block';
-            responseHeadersEl.textContent = Object.entries(msg.headers).map(([k, v]) => k + ': ' + v).join('\n');
-          } else {
-            responseHeadersWrap.style.display = 'none';
-          }
+          responseHeadersWrap.style.display = 'none';
         }
-        responseBody.textContent = formatResponseBody(msg.body || '(空)');
       }
-    });
+      responseBody.textContent = formatResponseBody(msg.body || '(空)');
+      lastResponsePayload = { status: msg.status, statusText: msg.statusText || '', headers: msg.headers || {}, body: msg.body || '', error: msg.error };
+      }
+  });
+
+    document.getElementById('saveAsInstanceBtn').onclick = () => {
+      if (!lastResponsePayload) {
+        responseStatus.textContent = '请先发送请求后再保存为实例';
+        responseStatus.className = 'response-status error';
+        return;
+      }
+      vscode.postMessage({
+        type: 'saveAsInstance',
+        requestPayload: getRequestPayload(),
+        responsePayload: lastResponsePayload
+      });
+    };
   </script>
 </body>
 </html>

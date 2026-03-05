@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>实例预览</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      overflow: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+    body {
+      margin: 0;
+      padding: 20px 24px;
+      font-family: var(--vscode-font-family);
+      font-size: 13px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+    }
+    .section {
+      margin-bottom: 24px;
+      padding: 16px;
+      background: var(--vscode-editor-inactiveSelectionBackground);
+      border-radius: 8px;
+      border: 1px solid var(--vscode-widget-border);
+    }
+    .section-title {
+      font-weight: 600;
+      font-size: 12px;
+      margin-bottom: 12px;
+      color: var(--vscode-foreground);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.9;
+    }
+    .preview-row {
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .preview-label {
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+    .preview-value {
+      padding: 8px 12px;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+      line-height: 1.45;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .preview-value.inline {
+      max-height: none;
+      font-weight: 500;
+    }
+    .response-status {
+      padding: 8px 0;
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .response-status.success { color: var(--vscode-testing-iconPassed); }
+    .response-status.error { color: var(--vscode-errorForeground); }
+    .scrollbar-hidden {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .scrollbar-hidden::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body>
+  <div class="section">
+    <div class="section-title">请求</div>
+    <div class="preview-row">
+      <div class="preview-label">方法</div>
+      <div class="preview-value inline" id="reqMethod">-</div>
+    </div>
+    <div class="preview-row">
+      <div class="preview-label">URL</div>
+      <div class="preview-value inline" id="reqUrl">-</div>
+    </div>
+    <div class="preview-row" id="reqHeadersWrap">
+      <div class="preview-label">请求头</div>
+      <pre class="preview-value scrollbar-hidden" id="reqHeaders">-</pre>
+    </div>
+    <div class="preview-row" id="reqBodyWrap">
+      <div class="preview-label">请求体</div>
+      <pre class="preview-value scrollbar-hidden" id="reqBody">-</pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">响应</div>
+    <div class="response-status" id="responseStatus">-</div>
+    <div class="preview-row" id="resHeadersWrap">
+      <div class="preview-label">响应头</div>
+      <pre class="preview-value scrollbar-hidden" id="resHeaders">-</pre>
+    </div>
+    <div class="preview-row">
+      <div class="preview-label">响应体</div>
+      <pre class="preview-value scrollbar-hidden" id="resBody">-</pre>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const vscode = acquireVsCodeApi && acquireVsCodeApi();
+      function escapeHtml(s) {
+        if (s == null) return '';
+        const div = document.createElement('div');
+        div.textContent = String(s);
+        return div.innerHTML;
+      }
+      function formatBody(body) {
+        if (!body || !String(body).trim()) return '(无)';
+        const trimmed = String(body).trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try {
+            return JSON.stringify(JSON.parse(body), null, 2);
+          } catch (e) {
+            return body;
+          }
+        }
+        return body;
+      }
+      function formatHeaders(headers) {
+        if (!headers || typeof headers !== 'object') return '(无)';
+        const entries = Object.entries(headers);
+        if (entries.length === 0) return '(无)';
+        return entries.map(function(kv) { return kv[0] + ': ' + (kv[1] || ''); }).join('\n');
+      }
+      window.addEventListener('message', function(e) {
+        const msg = e.data;
+        if (msg.type !== 'init') return;
+        const req = msg.request || {};
+        const res = msg.response || {};
+        document.getElementById('reqMethod').textContent = req.method || '-';
+        document.getElementById('reqUrl').textContent = req.url || '-';
+        document.getElementById('reqHeaders').textContent = formatHeaders(req.headers);
+        var bodyText = req.body;
+        if (req.formData && req.formData.length) {
+          bodyText = req.formData.map(function(i) { return i.key + (i.type === 'file' ? '=[文件]' : '=' + (i.value || '')); }).join('\n');
+        } else if (req.formUrlEncoded && req.formUrlEncoded.length) {
+          bodyText = req.formUrlEncoded.map(function(i) { return i.key + '=' + (i.value || ''); }).join('&');
+        }
+        document.getElementById('reqBody').textContent = formatBody(bodyText);
+        if (!bodyText || bodyText === '(无)') {
+          var wrap = document.getElementById('reqBodyWrap');
+          if (wrap) wrap.style.display = ['GET', 'HEAD'].indexOf(req.method) >= 0 ? 'none' : 'block';
+        }
+        var statusEl = document.getElementById('responseStatus');
+        if (res.error) {
+          statusEl.textContent = '错误: ' + res.error;
+          statusEl.className = 'response-status error';
+        } else {
+          statusEl.textContent = (res.status != null ? res.status : '-') + ' ' + (res.statusText || '');
+          statusEl.className = 'response-status ' + (res.status >= 200 && res.status < 300 ? 'success' : 'error');
+        }
+        document.getElementById('resHeaders').textContent = formatHeaders(res.headers);
+        document.getElementById('resBody').textContent = formatBody(res.body);
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 import * as vscode from 'vscode';
 import { HttpRequestTreeProvider } from './provider/http_request_tree_provider';
 import { createRequestEditorPanel } from './webview/request_editor';
+import { createInstancePreviewPanel } from './webview/instance_preview';
 import { createEnvironmentManagerPanel } from './webview/environment_manager';
 import { createCollectionManagerPanel } from './webview/collection_manager';
 import type { Project } from './models/types';
@@ -22,6 +23,11 @@ export function activate(context: vscode.ExtensionContext) {
 		const item = e.selection[0] as vscode.TreeItem | undefined;
 		const id = item?.id;
 		if (!id) return;
+		const instance = treeProvider.getInstanceById(id);
+		if (instance) {
+			createInstancePreviewPanel(context, instance);
+			return;
+		}
 		const iface = treeProvider.getInterfaceById(id);
 		if (iface) {
 			const project = treeProvider.getProjectForInterface(iface);
@@ -54,7 +60,8 @@ export function activate(context: vscode.ExtensionContext) {
 				(projectId, envId) => {
 					const p = treeProvider.getProjects().find((pr) => pr.id === projectId);
 					if (p) treeProvider.setCurrentEnvironmentById(p, envId);
-				}
+				},
+				(i, name, req, res) => treeProvider.addInstance(i, name, req, res)
 			);
 		}
 	});
@@ -111,7 +118,8 @@ export function activate(context: vscode.ExtensionContext) {
 						(projectId, envId) => {
 							const px = treeProvider.getProjects().find((pr) => pr.id === projectId);
 							if (px) treeProvider.setCurrentEnvironmentById(px, envId);
-						}
+						},
+						(i, name, req, res) => treeProvider.addInstance(i, name, req, res)
 					);
 				},
 				(iface) => treeProvider.deleteInterface(iface),
@@ -131,7 +139,8 @@ export function activate(context: vscode.ExtensionContext) {
 							(projectId, envId) => {
 								const px = treeProvider.getProjects().find((pr) => pr.id === projectId);
 								if (px) treeProvider.setCurrentEnvironmentById(px, envId);
-							}
+							},
+							(i, name, req, res) => treeProvider.addInstance(i, name, req, res)
 						);
 					}
 				}
@@ -165,7 +174,8 @@ export function activate(context: vscode.ExtensionContext) {
 					(projectId, envId) => {
 						const p = treeProvider.getProjects().find((pr) => pr.id === projectId);
 						if (p) treeProvider.setCurrentEnvironmentById(p, envId);
-					}
+					},
+					(i, name, req, res) => treeProvider.addInstance(i, name, req, res)
 				);
 			}
 		})
@@ -175,6 +185,13 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('vscode-http.deleteInterface', async (item: vscode.TreeItem) => {
 			const iface = item?.id ? treeProvider.getInterfaceById(item.id) : undefined;
 			if (iface) await treeProvider.deleteInterface(iface);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-http.deleteInstance', async (item: vscode.TreeItem) => {
+			const instance = item?.id ? treeProvider.getInstanceById(item.id) : undefined;
+			if (instance) await treeProvider.deleteInstance(instance);
 		})
 	);
 }

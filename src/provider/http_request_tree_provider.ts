@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { Project, Collection, Interface, Environment } from '../models/types';
+import type { Project, Collection, Interface, Environment, Instance, RequestSnapshot, ResponseSnapshot } from '../models/types';
 
 const STORAGE_DIR = '.vscode-http';
 const PROJECTS_INDEX = 'projects.json';
@@ -10,7 +10,7 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[<>:"/\\|?*]/g, '_').trim() || 'project';
 }
 
-type TreeDataItem = Project | Collection | Interface | { type: 'requestBody'; parent: Interface } | { type: 'responseBody'; parent: Interface };
+type TreeDataItem = Project | Collection | Interface | Instance;
 
 function normalizeUrl(url: string): string {
   return url.replace(/\/+$/, '');
@@ -33,6 +33,26 @@ function getPathFromUrl(url: string, baseUrl?: string): string {
       }
     }
     return path + search;
+  } catch {
+    return url;
+  }
+}
+
+/** 从完整 url 中仅提取路径（去掉 baseUrl 前缀与 query 参数），用于 Tree 展示 */
+function getPathOnlyFromUrl(url: string, baseUrl?: string): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname || '/';
+    if (baseUrl) {
+      const base = normalizeUrl(baseUrl);
+      const basePath = new URL(base).pathname.replace(/\/+$/, '');
+      if (basePath && basePath !== '/') {
+        if (path === basePath || path.startsWith(basePath + '/')) {
+          return path === basePath ? '/' : path.slice(basePath.length) || '/';
+        }
+      }
+    }
+    return path;
   } catch {
     return url;
   }
@@ -119,11 +139,11 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
                 name: '用户相关',
                 parentId: 'proj-1',
                 children: [
-                  { id: 'api-1', name: '获取用户列表', url: 'https://api.example.com/users', method: 'GET', parentId: 'coll-1', requestBody: undefined, responseBody: '[]' },
-                  { id: 'api-2', name: '创建用户', url: 'https://api.example.com/users', method: 'POST', parentId: 'coll-1', requestBody: '{"name": "", "email": ""}', responseBody: undefined },
+                  { id: 'api-1', name: '获取用户列表', url: 'https://api.example.com/users', method: 'GET', parentId: 'coll-1', requestBody: undefined, instances: [] },
+                  { id: 'api-2', name: '创建用户', url: 'https://api.example.com/users', method: 'POST', parentId: 'coll-1', requestBody: '{"name": "", "email": ""}', instances: [] },
                 ],
               },
-              { id: 'api-3', name: '健康检查', url: 'https://api.example.com/health', method: 'GET', parentId: 'proj-1', requestBody: undefined, responseBody: '{"status": "ok"}' },
+              { id: 'api-3', name: '健康检查', url: 'https://api.example.com/health', method: 'GET', parentId: 'proj-1', requestBody: undefined, instances: [] },
             ],
           },
         ];
@@ -187,26 +207,23 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
       item.iconPath = new vscode.ThemeIcon('globe');
       const project = this.getProjectForItem(element);
       const baseUrl = project ? this.getCurrentBaseUrl(project) : undefined;
-      const path = getPathFromUrl(element.url, baseUrl);
-      item.description = `${element.method || 'GET'} ${path}`;
+      const pathOnly = getPathOnlyFromUrl(element.url, baseUrl);
+      item.description = `${element.method || 'GET'} ${pathOnly}`;
       item.tooltip = `${element.method || 'GET'} ${element.url}`;
       item.contextValue = 'interface';
       return item;
     }
 
-    if (element.type === 'requestBody') {
-      const item = new vscode.TreeItem('请求体', vscode.TreeItemCollapsibleState.None);
-      item.iconPath = new vscode.ThemeIcon('edit');
-      item.tooltip = element.parent.requestBody || '暂无请求体';
-      item.contextValue = 'requestBody';
-      return item;
-    }
-
-    if (element.type === 'responseBody') {
-      const item = new vscode.TreeItem('响应体', vscode.TreeItemCollapsibleState.None);
-      item.iconPath = new vscode.ThemeIcon('output');
-      item.tooltip = element.parent.responseBody || '暂无响应体';
-      item.contextValue = 'responseBody';
+    if (this.isInstance(element)) {
+      const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+      item.id = element.id;
+      item.iconPath = new vscode.ThemeIcon('save');
+      const res = element.responseSnapshot;
+      const status = res?.status;
+      const tip = status != null ? `${element.name} · ${status} ${res?.statusText || ''}` : element.name;
+      item.tooltip = tip;
+      item.description = status != null ? `${status}` : '';
+      item.contextValue = 'instance';
       return item;
     }
 
@@ -227,10 +244,7 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     }
 
     if (this.isInterface(element)) {
-      const children: TreeDataItem[] = [];
-      children.push({ type: 'requestBody', parent: element });
-      children.push({ type: 'responseBody', parent: element });
-      return children;
+      return (element.instances ?? []) as TreeDataItem[];
     }
 
     return [];
@@ -245,7 +259,11 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
   }
 
   private isInterface(item: TreeDataItem): item is Interface {
-    return 'parentId' in item && 'url' in item && !('children' in item);
+    return 'parentId' in item && 'url' in item && !('children' in item) && !('requestSnapshot' in item);
+  }
+
+  private isInstance(item: TreeDataItem): item is Instance {
+    return 'requestSnapshot' in item && 'responseSnapshot' in item && 'parentId' in item;
   }
 
   getProjects(): Project[] {
@@ -471,6 +489,63 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     if (data.binaryBase64 !== undefined) iface.binaryBase64 = data.binaryBase64;
     this.saveToStorage();
     this.refresh();
+  }
+
+  /** 将一次请求保存为实例（由请求编辑器「保存为实例」调用） */
+  addInstance(iface: Interface, name: string, requestSnapshot: RequestSnapshot, responseSnapshot: ResponseSnapshot): void {
+    if (!iface.instances) iface.instances = [];
+    const instance: Instance = {
+      id: `inst-${Date.now()}`,
+      name: name.trim() || `实例 ${iface.instances.length + 1}`,
+      parentId: iface.id,
+      requestSnapshot,
+      responseSnapshot,
+    };
+    iface.instances.push(instance);
+    this.saveToStorage();
+    this.refresh();
+    vscode.window.showInformationMessage(`已保存实例「${instance.name}」`);
+  }
+
+  getInstanceById(id: string): Instance | undefined {
+    for (const p of this.projects) {
+      for (const c of p.children) {
+        if (this.isInterface(c)) {
+          const found = (c.instances ?? []).find((inst) => inst.id === id);
+          if (found) return found;
+        } else {
+          for (const i of (c as Collection).children) {
+            const found = (i.instances ?? []).find((inst) => inst.id === id);
+            if (found) return found;
+          }
+        }
+      }
+    }
+    return undefined;
+  }
+
+  /** 获取实例所属的 Interface */
+  getInterfaceForInstance(instance: Instance): Interface | undefined {
+    return this.getInterfaceById(instance.parentId);
+  }
+
+  async deleteInstance(instance: Instance): Promise<void> {
+    const iface = this.getInterfaceForInstance(instance);
+    if (!iface) return;
+    const confirm = await vscode.window.showWarningMessage(
+      `确定删除实例「${instance.name}」？`,
+      '删除',
+      '取消'
+    );
+    if (confirm !== '删除') return;
+    const list = iface.instances ?? [];
+    const idx = list.findIndex((inst) => inst.id === instance.id);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      this.saveToStorage();
+      this.refresh();
+      vscode.window.showInformationMessage('已删除实例');
+    }
   }
 
   async setCurrentEnvironment(project: Project): Promise<void> {
