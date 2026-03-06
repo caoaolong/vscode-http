@@ -81,12 +81,17 @@ export interface AuthConfig {
   value?: string;
 }
 
+/** 接口类型：HTTP 普通请求、SSE 服务端推送、WebSocket 双向通信 */
+export type InterfaceType = 'http' | 'sse' | 'websocket';
+
 export interface Interface {
   id: string;
   name: string;
   url: string;
   method?: string;
   parentId: string;
+  /** 接口类型，默认 http */
+  interfaceType?: InterfaceType;
   requestBody?: string;
   headers?: Record<string, string>;
   bodyType?: BodyType;

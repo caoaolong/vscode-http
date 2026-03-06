@@ -3,6 +3,7 @@ import * as https from 'https';
 import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
+import WebSocket from 'ws';
 import type { Interface, Environment, RequestSnapshot, ResponseSnapshot } from '../models/types';
 import { tryReveal, registerPanel } from './panel_registry';
 
@@ -52,7 +53,7 @@ function getHtml(context: vscode.ExtensionContext, webview: vscode.Webview): str
     `font-src ${webview.cspSource ?? ''}`,
     `img-src data: ${webview.cspSource ?? ''}`,
     "worker-src blob:",
-    "connect-src 'none'",
+    "connect-src https: http: wss: ws:;",
   ].join('; ');
   html = html.replace(/\{\{CSP\}\}/g, csp);
   return html;
@@ -106,6 +107,129 @@ function buildRequestBody(data: RequestData): { body: Buffer; contentType?: stri
 function getDebugOutputChannel(): vscode.OutputChannel {
   const name = 'vscode-http';
   return vscode.window.createOutputChannel(name);
+}
+
+/** 解析 SSE 流：按 \n\n 切分事件，提取 data: 行内容 */
+function parseSSEChunk(buf: string): { events: string[]; remaining: string } {
+  const events: string[] = [];
+  const blocks = buf.split(/\n\n/);
+  const remaining = blocks.pop() ?? '';
+  for (const block of blocks) {
+    let data = '';
+    for (const line of block.split('\n')) {
+      if (line.startsWith('data:')) {
+        data += (data ? '\n' : '') + line.slice(5).replace(/^\s/, '');
+      }
+    }
+    if (data) events.push(data);
+  }
+  return { events, remaining };
+}
+
+/** 在扩展侧发起 SSE 连接，通过 postMessage 向 webview 推送事件；返回用于断开连接的 destroy 函数 */
+function connectSSE(
+  url: string,
+  headers: Record<string, string>,
+  postMessage: (msg: { type: string; [k: string]: unknown }) => void
+): () => void {
+  let destroyed = false;
+  let req: http.ClientRequest | null = null;
+
+  const destroy = () => {
+    destroyed = true;
+    if (req) {
+      req.destroy();
+      req = null;
+    }
+  };
+
+  try {
+    const parsed = new URL(url);
+    const isHttps = parsed.protocol === 'https:';
+    const lib = isHttps ? https : http;
+    const opts: http.RequestOptions = {
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
+    };
+
+    req = lib.request(opts, (res) => {
+      if (destroyed) return;
+      postMessage({ type: 'sseStatus', status: res.statusCode ?? 0, statusText: res.statusMessage ?? '' });
+      let buf = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk: string) => {
+        if (destroyed) return;
+        buf += chunk;
+        const { events, remaining } = parseSSEChunk(buf);
+        buf = remaining;
+        for (const data of events) {
+          postMessage({ type: 'sseEvent', data });
+        }
+      });
+      res.on('end', () => {
+        if (destroyed) return;
+        postMessage({ type: 'sseEnd' });
+      });
+      res.on('error', (err) => {
+        if (destroyed) return;
+        postMessage({ type: 'sseEnd', error: err.message });
+      });
+    });
+    req.on('error', (err) => {
+      if (destroyed) return;
+      postMessage({ type: 'sseEnd', error: err.message });
+    });
+    req.end();
+  } catch (err) {
+    postMessage({ type: 'sseEnd', error: err instanceof Error ? err.message : String(err) });
+  }
+
+  return destroy;
+}
+
+/** 在扩展侧建立 WebSocket 连接，通过 postMessage 向 webview 推送事件；返回 { close, send } */
+function connectWebSocket(
+  url: string,
+  postMessage: (msg: { type: string; [k: string]: unknown }) => void
+): { close: () => void; send: (data: string) => void } {
+  let ws: WebSocket | null = null;
+  const close = () => {
+    if (ws) {
+      try {
+        ws.removeAllListeners();
+        ws.close();
+      } catch {
+        // ignore
+      }
+      ws = null;
+    }
+  };
+  const send = (data: string) => {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(data);
+  };
+  try {
+    ws = new WebSocket(url);
+    ws.on('open', () => {
+      postMessage({ type: 'wsOpen' });
+    });
+    ws.on('message', (data: Buffer | string) => {
+      const text = typeof data === 'string' ? data : (data as Buffer).toString('utf8');
+      postMessage({ type: 'wsMessage', data: text });
+    });
+    ws.on('close', () => {
+      ws = null;
+      postMessage({ type: 'wsEnd' });
+    });
+    ws.on('error', (err: Error) => {
+      postMessage({ type: 'wsEnd', error: err.message });
+    });
+  } catch (err) {
+    postMessage({ type: 'wsEnd', error: err instanceof Error ? err.message : String(err) });
+  }
+  return { close, send };
 }
 
 async function sendHttpRequest(data: RequestData): Promise<ResponseData> {
@@ -217,11 +341,49 @@ export function createRequestEditorPanel(
   registerPanel(panelId, panel);
   panel.webview.html = getHtml(context, panel.webview);
 
+  let sseDestroy: (() => void) | null = null;
+  let wsHandle: { close: () => void; send: (data: string) => void } | null = null;
+
   panel.webview.onDidReceiveMessage(
     (msg) => {
       try {
         if (msg.type === 'setCurrentEnvironment') {
           onEnvChange(project.id, msg.envId);
+        } else if (msg.type === 'connectSSE') {
+          if (sseDestroy) {
+            sseDestroy();
+            sseDestroy = null;
+          }
+          sseDestroy = connectSSE(
+            msg.url as string,
+            (msg.headers as Record<string, string>) || {},
+            (m) => panel.webview.postMessage(m)
+          );
+        } else if (msg.type === 'disconnectSSE') {
+          if (sseDestroy) {
+            sseDestroy();
+            sseDestroy = null;
+            panel.webview.postMessage({ type: 'sseEnd' });
+          }
+        } else if (msg.type === 'connectWS') {
+          if (wsHandle) {
+            wsHandle.close();
+            wsHandle = null;
+          }
+          const url = msg.url as string;
+          if (url) {
+            wsHandle = connectWebSocket(url, (m) => panel.webview.postMessage(m));
+          }
+        } else if (msg.type === 'disconnectWS') {
+          if (wsHandle) {
+            wsHandle.close();
+            wsHandle = null;
+            panel.webview.postMessage({ type: 'wsEnd' });
+          }
+        } else if (msg.type === 'sendWS') {
+          if (wsHandle && msg.data !== undefined) {
+            wsHandle.send(String(msg.data));
+          }
         } else if (msg.type === 'sendRequest') {
           sendHttpRequest({
             url: msg.url,
@@ -315,6 +477,7 @@ export function createRequestEditorPanel(
   panel.webview.postMessage({
     type: 'init',
     theme: getMonacoTheme(),
+    interfaceType: iface.interfaceType || 'http',
     name: iface.name || '',
     baseUrl: baseUrl ?? '',
     path: pathFromUrl,

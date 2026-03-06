@@ -56,6 +56,16 @@
       cursor: pointer;
     }
     .method-select:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .interface-type-badge {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+    }
+    .ws-send-row { margin-top: 8px; }
     .url-wrap { display: flex; flex: 1; align-items: center; gap: 0; min-width: 0; }
     .url-env-select {
       flex-shrink: 0;
@@ -358,6 +368,7 @@
       <input type="text" class="req-name-input" id="requestName" placeholder="请求名称" />
     </div>
     <div class="row">
+      <span class="interface-type-badge" id="interfaceTypeBadge">HTTP</span>
       <select class="method-select" id="method">
         <option value="GET">GET</option>
         <option value="POST">POST</option>
@@ -370,13 +381,19 @@
         <input type="text" class="url-input" id="urlPath" placeholder="路径，如 /users 或 /api/users/1" />
       </div>
       <button class="btn" id="sendBtn">发送</button>
+      <button class="btn" id="connectBtn" style="display:none">连接</button>
+      <button class="btn btn-secondary" id="disconnectBtn" style="display:none">断开</button>
       <button class="btn btn-secondary" id="saveBtn">保存</button>
       <button class="btn btn-secondary" id="saveAsInstanceBtn">保存为实例</button>
     </div>
+    <div class="row ws-send-row" id="wsSendRow" style="display:none">
+      <input type="text" class="url-input" id="wsMessageInput" placeholder="输入要发送的消息" style="flex:1" />
+      <button class="btn btn-secondary" id="wsSendBtn">发送消息</button>
+    </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">请求参数</div>
+  <div class="section" id="sectionQueryParams">
+    <div class="section-title">请求参数（Query，顺序会保留）</div>
     <div id="queryParamsRows"></div>
     <div class="header-add-actions">
       <button class="btn add-btn btn-secondary" id="addQueryParam">+ 添加参数</button>
@@ -445,7 +462,7 @@
   </div>
 
   <div class="body-response-layout">
-  <div class="section">
+  <div class="section" id="sectionRequestBody">
     <div class="section-title">请求体</div>
     <div class="body-type-tabs">
       <button class="body-type-tab" data-type="form-data">form-data</button>
@@ -529,6 +546,8 @@
     let currentBodyType = 'json';
     let binaryBase64 = '';
     let editors = { json: null, xml: null, raw: null, graphql: null };
+    /** 接口类型：http | sse | websocket */
+    let interfaceType = 'http';
 
     const methodSelect = document.getElementById('method');
     const urlEnvSelect = document.getElementById('urlEnvSelect');
@@ -624,6 +643,114 @@
     const responseHeadersWrap = document.getElementById('responseHeadersWrap');
     const requestFullContent = document.getElementById('requestFullContent');
     const sendBtn = document.getElementById('sendBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const wsSendRow = document.getElementById('wsSendRow');
+    const wsMessageInput = document.getElementById('wsMessageInput');
+    const wsSendBtn = document.getElementById('wsSendBtn');
+    const sectionQueryParams = document.getElementById('sectionQueryParams');
+    const sectionRequestBody = document.getElementById('sectionRequestBody');
+    const responseBodyLabel = document.querySelector('.response-body-label');
+
+    function applyUIByType() {
+      const isHttp = interfaceType === 'http';
+      const isSse = interfaceType === 'sse';
+      const isWs = interfaceType === 'websocket';
+      var badge = document.getElementById('interfaceTypeBadge');
+      if (badge) badge.textContent = isHttp ? 'HTTP' : (isSse ? 'SSE' : 'WebSocket');
+      methodSelect.style.display = isHttp ? '' : 'none';
+      sendBtn.style.display = isHttp ? '' : 'none';
+      if (saveBtn) saveBtn.style.display = ''; /* 所有类型均可保存 URL/请求头 */
+      var saveAsBtn = document.getElementById('saveAsInstanceBtn');
+      if (saveAsBtn) saveAsBtn.style.display = isHttp ? '' : 'none';
+      if (connectBtn) connectBtn.style.display = (isSse || isWs) ? '' : 'none';
+      if (disconnectBtn) disconnectBtn.style.display = (isSse || isWs) ? '' : 'none';
+      if (wsSendRow) wsSendRow.style.display = isWs ? '' : 'none';
+      if (sectionRequestBody) sectionRequestBody.style.display = isHttp ? '' : 'none';
+      if (sectionQueryParams) sectionQueryParams.style.display = '';
+      if (responseBodyLabel) responseBodyLabel.textContent = isHttp ? '响应体' : (isSse ? '事件流' : '消息');
+    }
+
+    function appendToResponse(text, prefix) {
+      const el = document.getElementById('responseBody');
+      const ts = new Date().toLocaleTimeString();
+      const line = prefix ? '[' + ts + '] ' + prefix + text : '[' + ts + '] ' + text;
+      el.textContent = (el.textContent || '') + (el.textContent ? '\n' : '') + line;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function connectSSE() {
+      const url = getFullUrl();
+      if (!url || !url.trim()) {
+        responseStatus.textContent = '请填写 URL';
+        responseStatus.className = 'response-status error';
+        return;
+      }
+      try { new URL(url); } catch (_) {
+        responseStatus.textContent = 'URL 格式无效';
+        responseStatus.className = 'response-status error';
+        return;
+      }
+      const headers = getHeaders();
+      const authHeaders = getAuthHeaders();
+      for (const k in authHeaders) headers[k] = authHeaders[k];
+      responseStatus.textContent = '连接中…';
+      responseStatus.className = 'response-status';
+      document.getElementById('responseBody').textContent = '';
+      if (connectBtn) connectBtn.disabled = true;
+      vscode.postMessage({ type: 'connectSSE', url: url, headers: headers });
+    }
+
+    function disconnectSSE() {
+      vscode.postMessage({ type: 'disconnectSSE' });
+      if (connectBtn) connectBtn.disabled = false;
+    }
+
+    function connectWS() {
+      let url = getFullUrl();
+      if (!url || !url.trim()) {
+        responseStatus.textContent = '请填写 URL';
+        responseStatus.className = 'response-status error';
+        return;
+      }
+      if (!/^wss?:\/\//i.test(url)) {
+        url = url.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'ws://');
+      }
+      try { new URL(url); } catch (_) {
+        responseStatus.textContent = 'URL 格式无效';
+        responseStatus.className = 'response-status error';
+        return;
+      }
+      responseStatus.textContent = '连接中…';
+      responseStatus.className = 'response-status';
+      document.getElementById('responseBody').textContent = '';
+      if (connectBtn) connectBtn.disabled = true;
+      vscode.postMessage({ type: 'connectWS', url: url });
+    }
+
+    function disconnectWS() {
+      vscode.postMessage({ type: 'disconnectWS' });
+      if (connectBtn) connectBtn.disabled = false;
+      if (disconnectBtn) disconnectBtn.disabled = true;
+      if (wsSendBtn) wsSendBtn.disabled = true;
+      if (wsMessageInput) wsMessageInput.disabled = true;
+    }
+
+    connectBtn.onclick = function() {
+      if (interfaceType === 'sse') connectSSE();
+      else if (interfaceType === 'websocket') connectWS();
+    };
+    disconnectBtn.onclick = function() {
+      if (interfaceType === 'sse') disconnectSSE();
+      else if (interfaceType === 'websocket') disconnectWS();
+    };
+    wsSendBtn.onclick = function() {
+      const msg = wsMessageInput.value;
+      vscode.postMessage({ type: 'sendWS', data: msg });
+      appendToResponse(msg, '发: ');
+      wsMessageInput.value = '';
+    };
 
     function formatFullRequest(payload) {
       const lines = [payload.method + ' ' + payload.url, ''];
@@ -1041,11 +1168,16 @@
       editors.xml = monaco.editor.create(document.getElementById('bodyXml'), { ...opts, language: 'xml' });
       editors.raw = monaco.editor.create(document.getElementById('bodyRaw'), { ...opts, language: 'plaintext' });
       editors.graphql = monaco.editor.create(document.getElementById('bodyGraphql'), { ...opts, language: 'json' });
-      if (pendingInit) {
-        const m = pendingInit;
-        pendingInit = null;
-        applyMonacoTheme(m.theme);
-        environments = m.environments || [];
+        if (pendingInit) {
+          const m = pendingInit;
+          pendingInit = null;
+          applyMonacoTheme(m.theme);
+          interfaceType = m.interfaceType || 'http';
+          applyUIByType();
+          if (disconnectBtn) disconnectBtn.disabled = true;
+          if (wsSendBtn) wsSendBtn.disabled = true;
+          if (wsMessageInput) wsMessageInput.disabled = true;
+          environments = m.environments || [];
         if (environments.length > 0) {
           urlEnvSelect.innerHTML = environments.map(e => '<option value="' + escapeHtml(e.id) + '">' + escapeHtml(e.name) + ' - ' + escapeHtml(e.baseUrl) + '</option>').join('');
           urlEnvSelect.value = m.currentEnvId || (environments[0] && environments[0].id) || '';
@@ -1083,6 +1215,11 @@
       if (msg.type === 'init') {
         if (!editors.json) { pendingInit = msg; return; }
         applyMonacoTheme(msg.theme);
+        interfaceType = msg.interfaceType || 'http';
+        applyUIByType();
+        disconnectBtn.disabled = true;
+        if (wsSendBtn) wsSendBtn.disabled = true;
+        if (wsMessageInput) wsMessageInput.disabled = true;
         environments = msg.environments || [];
         if (environments.length > 0) {
           urlEnvSelect.innerHTML = environments.map(e => '<option value="' + escapeHtml(e.id) + '">' + escapeHtml(e.name) + ' - ' + escapeHtml(e.baseUrl) + '</option>').join('');
@@ -1118,6 +1255,37 @@
         Object.entries(h).forEach(([k, v]) => addHeaderRow(k, v || ''));
       } else if (msg.type === 'theme') {
         applyMonacoTheme(msg.theme);
+      } else if (msg.type === 'sseStatus') {
+        responseStatus.textContent = (msg.status != null ? msg.status : '') + ' ' + (msg.statusText || '');
+        responseStatus.className = 'response-status ' + (msg.status >= 200 && msg.status < 300 ? 'success' : 'error');
+      } else if (msg.type === 'sseEvent') {
+        appendToResponse(msg.data || '', '');
+      } else if (msg.type === 'sseEnd') {
+        if (connectBtn) connectBtn.disabled = false;
+        if (msg.error) {
+          appendToResponse(msg.error, 'error: ');
+          responseStatus.textContent = '错误: ' + msg.error;
+          responseStatus.className = 'response-status error';
+        } else {
+          responseStatus.textContent = '已断开';
+          responseStatus.className = 'response-status';
+        }
+      } else if (msg.type === 'wsOpen') {
+        responseStatus.textContent = '已连接';
+        responseStatus.className = 'response-status success';
+        if (connectBtn) connectBtn.disabled = true;
+        if (disconnectBtn) disconnectBtn.disabled = false;
+        if (wsSendBtn) wsSendBtn.disabled = false;
+        if (wsMessageInput) wsMessageInput.disabled = false;
+      } else if (msg.type === 'wsMessage') {
+        appendToResponse(msg.data || '', '收: ');
+      } else if (msg.type === 'wsEnd') {
+        responseStatus.textContent = msg.error ? ('错误: ' + msg.error) : '已断开';
+        responseStatus.className = 'response-status ' + (msg.error ? 'error' : '');
+        if (connectBtn) connectBtn.disabled = false;
+        if (disconnectBtn) disconnectBtn.disabled = true;
+        if (wsSendBtn) wsSendBtn.disabled = true;
+        if (wsMessageInput) wsMessageInput.disabled = true;
       } else if (msg.type === 'response') {
         setSendLoading(false);
         if (msg.error) {

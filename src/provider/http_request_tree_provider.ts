@@ -204,12 +204,20 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
         vscode.TreeItemCollapsibleState.Collapsed
       );
       item.id = element.id;
-      item.iconPath = new vscode.ThemeIcon('globe');
+      const ifaceType = element.interfaceType || 'http';
+      if (ifaceType === 'sse') {
+        item.iconPath = new vscode.ThemeIcon('broadcast');
+      } else if (ifaceType === 'websocket') {
+        item.iconPath = new vscode.ThemeIcon('debug-disconnect');
+      } else {
+        item.iconPath = new vscode.ThemeIcon('globe');
+      }
       const project = this.getProjectForItem(element);
       const baseUrl = project ? this.getCurrentBaseUrl(project) : undefined;
       const pathOnly = getPathOnlyFromUrl(element.url, baseUrl);
-      item.description = `${element.method || 'GET'} ${pathOnly}`;
-      item.tooltip = `${element.method || 'GET'} ${element.url}`;
+      const typeLabel = ifaceType === 'http' ? (element.method || 'GET') : (ifaceType === 'sse' ? 'SSE' : 'WS');
+      item.description = `${typeLabel} ${pathOnly}`;
+      item.tooltip = element.url;
       item.contextValue = 'interface';
       return item;
     }
@@ -365,25 +373,51 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     if (!name?.trim()) return undefined;
     const pathInput = await vscode.window.showInputBox({
       prompt: '输入路径',
-      placeHolder: baseUrl ? '/users 或 /api/users/1' : 'https://api.example.com/users',
+      placeHolder: baseUrl ? '/users 或 /api/stream' : 'https://api.example.com/users',
       value: '/',
     });
     if (pathInput === undefined) return undefined;
     const path = (pathInput ?? '/').trim();
-    const method = await vscode.window.showQuickPick(
-      ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      { placeHolder: '选择请求方法', canPickMany: false }
+    const typePick = await vscode.window.showQuickPick(
+      [
+        { label: 'HTTP', description: '普通 HTTP 请求', type: 'http' as const },
+        { label: 'SSE', description: 'Server-Sent Events 服务端推送', type: 'sse' as const },
+        { label: 'WebSocket', description: 'WebSocket 双向通信', type: 'websocket' as const },
+      ],
+      { placeHolder: '选择接口类型', canPickMany: false }
     );
-    if (!method) return undefined;
-    const fullUrl = baseUrl
-      ? (baseUrl.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path))
-      : path.startsWith('http') ? path : 'https://api.example.com' + (path.startsWith('/') ? path : '/' + path);
+    if (!typePick) return undefined;
+    const interfaceType = typePick.type;
+    let fullUrl: string;
+    let method: string | undefined;
+    if (interfaceType === 'http') {
+      const methodPick = await vscode.window.showQuickPick(
+        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        { placeHolder: '选择请求方法', canPickMany: false }
+      );
+      if (!methodPick) return undefined;
+      method = methodPick;
+      fullUrl = baseUrl
+        ? (baseUrl.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path))
+        : path.startsWith('http') ? path : 'https://api.example.com' + (path.startsWith('/') ? path : '/' + path);
+    } else if (interfaceType === 'sse') {
+      fullUrl = baseUrl
+        ? (baseUrl.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path))
+        : path.startsWith('http') ? path : 'https://api.example.com' + (path.startsWith('/') ? path : '/' + path);
+      method = 'GET';
+    } else {
+      const base = baseUrl || 'https://api.example.com';
+      const normalized = base.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path);
+      fullUrl = normalized.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'ws://');
+      method = undefined;
+    }
     const iface: Interface = {
       id: `api-${Date.now()}`,
       name: name.trim(),
       url: fullUrl,
       method,
       parentId: collection.id,
+      interfaceType,
     };
     collection.children.push(iface);
     this.saveToStorage();
