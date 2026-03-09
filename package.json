@@ -35,6 +35,11 @@
         "title": "Hello World"
       },
       {
+        "command": "vscode-http.addProject",
+        "title": "新建项目",
+        "icon": "$(add)"
+      },
+      {
         "command": "vscode-http.manageEnvironments",
         "title": "环境管理"
       },
@@ -66,12 +71,29 @@
         "command": "vscode-http.deleteInstance",
         "title": "删除实例",
         "icon": "$(trash)"
+      },
+      {
+        "command": "vscode-http.deleteProject",
+        "title": "删除",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "vscode-http.addProject",
+          "when": "view == vscode-http.requestTree",
+          "group": "navigation"
+        }
+      ],
       "view/item/context": [
         {
           "command": "vscode-http.addCollection",
+          "when": "view == vscode-http.requestTree && viewItem == project",
+          "group": "inline"
+        },
+        {
+          "command": "vscode-http.deleteProject",
           "when": "view == vscode-http.requestTree && viewItem == project",
           "group": "inline"
         },

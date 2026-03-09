@@ -109,28 +109,13 @@ function getDebugOutputChannel(): vscode.OutputChannel {
   return vscode.window.createOutputChannel(name);
 }
 
-/** 解析 SSE 流：按 \n\n 切分事件，提取 data: 行内容 */
-function parseSSEChunk(buf: string): { events: string[]; remaining: string } {
-  const events: string[] = [];
-  const blocks = buf.split(/\n\n/);
-  const remaining = blocks.pop() ?? '';
-  for (const block of blocks) {
-    let data = '';
-    for (const line of block.split('\n')) {
-      if (line.startsWith('data:')) {
-        data += (data ? '\n' : '') + line.slice(5).replace(/^\s/, '');
-      }
-    }
-    if (data) events.push(data);
-  }
-  return { events, remaining };
-}
-
-/** 在扩展侧发起 SSE 连接，通过 postMessage 向 webview 推送事件；返回用于断开连接的 destroy 函数 */
+/** 在扩展侧发起 SSE 连接，将收到的 chunk 直接转发给前端显示；返回用于断开连接的 destroy 函数 */
 function connectSSE(
   url: string,
   headers: Record<string, string>,
-  postMessage: (msg: { type: string; [k: string]: unknown }) => void
+  postMessage: (msg: { type: string; [k: string]: unknown }) => void,
+  method: string = 'GET',
+  body?: string
 ): () => void {
   let destroyed = false;
   let req: http.ClientRequest | null = null;
@@ -143,31 +128,35 @@ function connectSSE(
     }
   };
 
+  const reqMethod = (method || 'GET').toUpperCase();
+
   try {
     const parsed = new URL(url);
     const isHttps = parsed.protocol === 'https:';
     const lib = isHttps ? https : http;
+    const reqHeaders = { ...headers };
+    const bodyBuffer = reqMethod !== 'GET' && reqMethod !== 'HEAD' && body != null && body !== ''
+      ? Buffer.from(body, 'utf8')
+      : Buffer.alloc(0);
+    if (bodyBuffer.length > 0) {
+      reqHeaders['Content-Length'] = String(bodyBuffer.length);
+      if (!reqHeaders['Content-Type']) reqHeaders['Content-Type'] = 'application/json';
+    }
     const opts: http.RequestOptions = {
       hostname: parsed.hostname,
       port: parsed.port || (isHttps ? 443 : 80),
       path: parsed.pathname + parsed.search,
-      method: 'GET',
-      headers: headers && Object.keys(headers).length > 0 ? headers : undefined,
+      method: reqMethod,
+      headers: Object.keys(reqHeaders).length > 0 ? reqHeaders : undefined,
     };
 
     req = lib.request(opts, (res) => {
       if (destroyed) return;
       postMessage({ type: 'sseStatus', status: res.statusCode ?? 0, statusText: res.statusMessage ?? '' });
-      let buf = '';
       res.setEncoding('utf8');
       res.on('data', (chunk: string) => {
         if (destroyed) return;
-        buf += chunk;
-        const { events, remaining } = parseSSEChunk(buf);
-        buf = remaining;
-        for (const data of events) {
-          postMessage({ type: 'sseEvent', data });
-        }
+        postMessage({ type: 'sseEvent', data: chunk });
       });
       res.on('end', () => {
         if (destroyed) return;
@@ -182,6 +171,7 @@ function connectSSE(
       if (destroyed) return;
       postMessage({ type: 'sseEnd', error: err.message });
     });
+    req.write(bodyBuffer);
     req.end();
   } catch (err) {
     postMessage({ type: 'sseEnd', error: err instanceof Error ? err.message : String(err) });
@@ -357,7 +347,9 @@ export function createRequestEditorPanel(
           sseDestroy = connectSSE(
             msg.url as string,
             (msg.headers as Record<string, string>) || {},
-            (m) => panel.webview.postMessage(m)
+            (m) => panel.webview.postMessage(m),
+            (msg.method as string) || 'GET',
+            msg.body as string | undefined
           );
         } else if (msg.type === 'disconnectSSE') {
           if (sseDestroy) {

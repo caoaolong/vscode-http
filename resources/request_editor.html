@@ -224,6 +224,30 @@
     }
     .body-panel { display: none; }
     .body-panel.active { display: block; }
+    .param-auth-header-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .param-auth-header-tab {
+      padding: 6px 14px;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 12px;
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .param-auth-header-tab:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .param-auth-header-tab.active {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border-color: var(--vscode-focusBorder);
+    }
+    .param-auth-header-panel { display: none; }
+    .param-auth-header-panel.active { display: block; }
     .monaco-container {
       width: 100%; height: 180px;
       border: 1px solid var(--vscode-input-border);
@@ -393,71 +417,76 @@
   </div>
 
   <div class="section" id="sectionQueryParams">
-    <div class="section-title">请求参数（Query，顺序会保留）</div>
-    <div id="queryParamsRows"></div>
-    <div class="header-add-actions">
-      <button class="btn add-btn btn-secondary" id="addQueryParam">+ 添加参数</button>
+    <div class="param-auth-header-tabs">
+      <button type="button" class="param-auth-header-tab active" data-tab="params">请求参数</button>
+      <button type="button" class="param-auth-header-tab" data-tab="headers">请求头</button>
+      <button type="button" class="param-auth-header-tab" data-tab="auth">授权</button>
     </div>
-  </div>
-
-  <div class="section auth-section">
-    <div class="section-title">授权</div>
-    <div class="auth-row">
-      <div class="auth-toggle-wrap">
-        <input type="checkbox" id="authEnabled" />
-        <label for="authEnabled">启用授权</label>
-      </div>
-      <select class="auth-type-select" id="authType">
-        <option value="bearer">Bearer Token</option>
-        <option value="jwt">JWT Bearer</option>
-        <option value="basic">Basic Auth</option>
-        <option value="oauth2">OAuth 2.0</option>
-        <option value="apiKey">Api Key</option>
-        <option value="oauth1">OAuth 1.0</option>
-      </select>
-    </div>
-    <div class="auth-params" id="authParams">
-      <div class="auth-inline auth-bearer auth-jwt auth-oauth2">
-        <label>Token</label>
-        <input type="password" id="authToken" placeholder="Token" style="flex:1;min-width:0" />
-      </div>
-      <div class="auth-inline auth-basic" style="display:none">
-        <label>用户名</label>
-        <input type="text" id="authUsername" placeholder="用户名" style="flex:1;min-width:0" />
-      </div>
-      <div class="auth-inline auth-basic" style="display:none">
-        <label>密码</label>
-        <input type="password" id="authPassword" placeholder="密码" style="flex:1;min-width:0" />
-      </div>
-      <div class="auth-inline auth-apiKey" style="display:none">
-        <label>Header 名</label>
-        <input type="text" id="authKeyName" placeholder="如 X-API-Key" style="flex:1;min-width:0" />
-      </div>
-      <div class="auth-inline auth-apiKey" style="display:none">
-        <label>值</label>
-        <input type="password" id="authKeyValue" placeholder="值" style="flex:1;min-width:0" />
-      </div>
-      <div class="auth-inline auth-oauth1" style="display:none">
-        <label>Consumer Key</label>
-        <input type="text" id="authConsumerKey" placeholder="Consumer Key" style="flex:1;min-width:0" />
-      </div>
-      <div class="auth-inline auth-oauth1" style="display:none">
-        <label>Consumer Secret</label>
-        <input type="password" id="authConsumerSecret" placeholder="Consumer Secret" style="flex:1;min-width:0" />
+    <div id="panelParams" class="param-auth-header-panel active">
+      <div class="section-title" style="margin-bottom:10px">Query 参数（顺序会保留）</div>
+      <div id="queryParamsRows"></div>
+      <div class="header-add-actions">
+        <button class="btn add-btn btn-secondary" id="addQueryParam">+ 添加参数</button>
       </div>
     </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">请求头</div>
-    <div id="headers"></div>
-    <div class="header-add-actions">
-      <select class="header-preset-select" id="headerPresetSelect">
-        <option value="">选择常用请求头...</option>
-      </select>
-      <button class="btn add-btn btn-secondary" id="addHeader">添加请求头</button>
-      <input type="text" class="header-custom-input" id="headerCustomInput" placeholder="自定义请求头名" />
-      <button class="btn add-btn btn-secondary" id="addCustomHeader">添加自定义头</button>
+    <div id="panelHeaders" class="param-auth-header-panel">
+      <div class="section-title" style="margin-bottom:10px">请求头</div>
+      <div id="headers"></div>
+      <div class="header-add-actions">
+        <select class="header-preset-select" id="headerPresetSelect">
+          <option value="">选择常用请求头...</option>
+        </select>
+        <button class="btn add-btn btn-secondary" id="addHeader">添加请求头</button>
+        <input type="text" class="header-custom-input" id="headerCustomInput" placeholder="自定义请求头名" />
+        <button class="btn add-btn btn-secondary" id="addCustomHeader">添加自定义头</button>
+      </div>
+    </div>
+    <div id="panelAuth" class="param-auth-header-panel auth-section">
+      <div class="section-title" style="margin-bottom:10px">授权</div>
+      <div class="auth-row">
+        <div class="auth-toggle-wrap">
+          <input type="checkbox" id="authEnabled" />
+          <label for="authEnabled">启用授权</label>
+        </div>
+        <select class="auth-type-select" id="authType">
+          <option value="bearer">Bearer Token</option>
+          <option value="jwt">JWT Bearer</option>
+          <option value="basic">Basic Auth</option>
+          <option value="oauth2">OAuth 2.0</option>
+          <option value="apiKey">Api Key</option>
+          <option value="oauth1">OAuth 1.0</option>
+        </select>
+      </div>
+      <div class="auth-params" id="authParams">
+        <div class="auth-inline auth-bearer auth-jwt auth-oauth2">
+          <label>Token</label>
+          <input type="password" id="authToken" placeholder="Token" style="flex:1;min-width:0" />
+        </div>
+        <div class="auth-inline auth-basic" style="display:none">
+          <label>用户名</label>
+          <input type="text" id="authUsername" placeholder="用户名" style="flex:1;min-width:0" />
+        </div>
+        <div class="auth-inline auth-basic" style="display:none">
+          <label>密码</label>
+          <input type="password" id="authPassword" placeholder="密码" style="flex:1;min-width:0" />
+        </div>
+        <div class="auth-inline auth-apiKey" style="display:none">
+          <label>Header 名</label>
+          <input type="text" id="authKeyName" placeholder="如 X-API-Key" style="flex:1;min-width:0" />
+        </div>
+        <div class="auth-inline auth-apiKey" style="display:none">
+          <label>值</label>
+          <input type="password" id="authKeyValue" placeholder="值" style="flex:1;min-width:0" />
+        </div>
+        <div class="auth-inline auth-oauth1" style="display:none">
+          <label>Consumer Key</label>
+          <input type="text" id="authConsumerKey" placeholder="Consumer Key" style="flex:1;min-width:0" />
+        </div>
+        <div class="auth-inline auth-oauth1" style="display:none">
+          <label>Consumer Secret</label>
+          <input type="password" id="authConsumerSecret" placeholder="Consumer Secret" style="flex:1;min-width:0" />
+        </div>
+      </div>
     </div>
   </div>
 
@@ -659,17 +688,40 @@
       const isWs = interfaceType === 'websocket';
       var badge = document.getElementById('interfaceTypeBadge');
       if (badge) badge.textContent = isHttp ? 'HTTP' : (isSse ? 'SSE' : 'WebSocket');
-      methodSelect.style.display = isHttp ? '' : 'none';
+      methodSelect.style.display = (isHttp || isSse) ? '' : 'none';
       sendBtn.style.display = isHttp ? '' : 'none';
       if (saveBtn) saveBtn.style.display = ''; /* 所有类型均可保存 URL/请求头 */
       var saveAsBtn = document.getElementById('saveAsInstanceBtn');
       if (saveAsBtn) saveAsBtn.style.display = isHttp ? '' : 'none';
       if (connectBtn) connectBtn.style.display = (isSse || isWs) ? '' : 'none';
       if (disconnectBtn) disconnectBtn.style.display = (isSse || isWs) ? '' : 'none';
+      if ((isSse || isWs)) setConnectDisconnectState(false);
       if (wsSendRow) wsSendRow.style.display = isWs ? '' : 'none';
-      if (sectionRequestBody) sectionRequestBody.style.display = isHttp ? '' : 'none';
+      if (sectionRequestBody) {
+        if (!isHttp && !isSse) sectionRequestBody.style.display = 'none';
+        else updateRequestBodyVisibility();
+      }
       if (sectionQueryParams) sectionQueryParams.style.display = '';
       if (responseBodyLabel) responseBodyLabel.textContent = isHttp ? '响应体' : (isSse ? '事件流' : '消息');
+    }
+
+    function updateRequestBodyVisibility() {
+      if (!sectionRequestBody) return;
+      if (interfaceType !== 'http' && interfaceType !== 'sse') return;
+      var method = (methodSelect && methodSelect.value || 'GET').toUpperCase();
+      sectionRequestBody.style.display = (method === 'GET' || method === 'HEAD') ? 'none' : '';
+    }
+
+    /** 连接/断开按钮状态：connected 为 true 时高亮断开、禁用连接；为 false 时高亮连接、禁用断开 */
+    function setConnectDisconnectState(connected) {
+      if (connectBtn) {
+        connectBtn.disabled = !!connected;
+        connectBtn.classList.toggle('btn-secondary', !!connected);
+      }
+      if (disconnectBtn) {
+        disconnectBtn.disabled = !connected;
+        disconnectBtn.classList.toggle('btn-secondary', !connected);
+      }
     }
 
     function appendToResponse(text, prefix) {
@@ -692,19 +744,28 @@
         responseStatus.className = 'response-status error';
         return;
       }
+      const payload = getRequestPayload();
       const headers = getHeaders();
       const authHeaders = getAuthHeaders();
       for (const k in authHeaders) headers[k] = authHeaders[k];
+      requestFullContent.textContent = formatFullRequest(payload);
+      if (requestFullContent.parentElement) requestFullContent.parentElement.open = true;
       responseStatus.textContent = '连接中…';
       responseStatus.className = 'response-status';
       document.getElementById('responseBody').textContent = '';
-      if (connectBtn) connectBtn.disabled = true;
-      vscode.postMessage({ type: 'connectSSE', url: url, headers: headers });
+      setConnectDisconnectState(true);
+      vscode.postMessage({
+        type: 'connectSSE',
+        url: url,
+        headers: payload.headers,
+        method: payload.method || 'GET',
+        body: payload.body
+      });
     }
 
     function disconnectSSE() {
       vscode.postMessage({ type: 'disconnectSSE' });
-      if (connectBtn) connectBtn.disabled = false;
+      setConnectDisconnectState(false);
     }
 
     function connectWS() {
@@ -725,14 +786,13 @@
       responseStatus.textContent = '连接中…';
       responseStatus.className = 'response-status';
       document.getElementById('responseBody').textContent = '';
-      if (connectBtn) connectBtn.disabled = true;
+      setConnectDisconnectState(true);
       vscode.postMessage({ type: 'connectWS', url: url });
     }
 
     function disconnectWS() {
       vscode.postMessage({ type: 'disconnectWS' });
-      if (connectBtn) connectBtn.disabled = false;
-      if (disconnectBtn) disconnectBtn.disabled = true;
+      setConnectDisconnectState(false);
       if (wsSendBtn) wsSendBtn.disabled = true;
       if (wsMessageInput) wsMessageInput.disabled = true;
     }
@@ -834,13 +894,27 @@
 
     (function initHeaderPresetSelect() {
       const sel = document.getElementById('headerPresetSelect');
-      COMMON_HEADERS.forEach(h => {
-        const opt = document.createElement('option');
-        opt.value = h;
-        opt.textContent = h;
-        sel.appendChild(opt);
-      });
+      if (sel) {
+        COMMON_HEADERS.forEach(h => {
+          const opt = document.createElement('option');
+          opt.value = h;
+          opt.textContent = h;
+          sel.appendChild(opt);
+        });
+      }
     })();
+
+    function switchParamAuthHeaderTab(tabId) {
+      document.querySelectorAll('.param-auth-header-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+      var panels = { params: 'panelParams', headers: 'panelHeaders', auth: 'panelAuth' };
+      Object.keys(panels).forEach(k => {
+        var el = document.getElementById(panels[k]);
+        if (el) el.classList.toggle('active', k === tabId);
+      });
+    }
+    document.querySelectorAll('.param-auth-header-tab').forEach(tab => {
+      tab.addEventListener('click', function() { switchParamAuthHeaderTab(this.dataset.tab); });
+    });
 
     function addQueryParamRow(key = '', value = '') {
       const row = document.createElement('div');
@@ -1057,6 +1131,8 @@
       return payload;
     }
 
+    methodSelect.addEventListener('change', updateRequestBodyVisibility);
+
     document.getElementById('addQueryParam').onclick = () => addQueryParamRow();
 
     document.getElementById('addHeader').onclick = () => {
@@ -1174,7 +1250,7 @@
           applyMonacoTheme(m.theme);
           interfaceType = m.interfaceType || 'http';
           applyUIByType();
-          if (disconnectBtn) disconnectBtn.disabled = true;
+          setConnectDisconnectState(false);
           if (wsSendBtn) wsSendBtn.disabled = true;
           if (wsMessageInput) wsMessageInput.disabled = true;
           environments = m.environments || [];
@@ -1192,6 +1268,7 @@
         applyPathAndQuery(m.path || '');
         if (requestNameEl) requestNameEl.value = m.name || '';
         methodSelect.value = m.method || 'GET';
+        updateRequestBodyVisibility();
         applyAuthConfig(m.auth);
         switchBodyType(m.bodyType || 'json');
         const bodyStr = m.body || '';
@@ -1217,7 +1294,7 @@
         applyMonacoTheme(msg.theme);
         interfaceType = msg.interfaceType || 'http';
         applyUIByType();
-        disconnectBtn.disabled = true;
+        setConnectDisconnectState(false);
         if (wsSendBtn) wsSendBtn.disabled = true;
         if (wsMessageInput) wsMessageInput.disabled = true;
         environments = msg.environments || [];
@@ -1235,6 +1312,7 @@
         applyPathAndQuery(msg.path || '');
         if (requestNameEl) requestNameEl.value = msg.name || '';
         methodSelect.value = msg.method || 'GET';
+        updateRequestBodyVisibility();
         applyAuthConfig(msg.auth);
         switchBodyType(msg.bodyType || 'json');
         const bodyStr = msg.body || '';
@@ -1261,7 +1339,7 @@
       } else if (msg.type === 'sseEvent') {
         appendToResponse(msg.data || '', '');
       } else if (msg.type === 'sseEnd') {
-        if (connectBtn) connectBtn.disabled = false;
+        setConnectDisconnectState(false);
         if (msg.error) {
           appendToResponse(msg.error, 'error: ');
           responseStatus.textContent = '错误: ' + msg.error;
@@ -1273,8 +1351,7 @@
       } else if (msg.type === 'wsOpen') {
         responseStatus.textContent = '已连接';
         responseStatus.className = 'response-status success';
-        if (connectBtn) connectBtn.disabled = true;
-        if (disconnectBtn) disconnectBtn.disabled = false;
+        setConnectDisconnectState(true);
         if (wsSendBtn) wsSendBtn.disabled = false;
         if (wsMessageInput) wsMessageInput.disabled = false;
       } else if (msg.type === 'wsMessage') {
@@ -1282,8 +1359,7 @@
       } else if (msg.type === 'wsEnd') {
         responseStatus.textContent = msg.error ? ('错误: ' + msg.error) : '已断开';
         responseStatus.className = 'response-status ' + (msg.error ? 'error' : '');
-        if (connectBtn) connectBtn.disabled = false;
-        if (disconnectBtn) disconnectBtn.disabled = true;
+        setConnectDisconnectState(false);
         if (wsSendBtn) wsSendBtn.disabled = true;
         if (wsMessageInput) wsMessageInput.disabled = true;
       } else if (msg.type === 'response') {

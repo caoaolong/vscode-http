@@ -323,6 +323,39 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     return undefined;
   }
 
+  async createProject(): Promise<void> {
+    const name = await vscode.window.showInputBox({
+      prompt: '输入项目名称',
+      placeHolder: '例如：示例项目',
+    });
+    if (!name?.trim()) return;
+    const project: Project = {
+      id: `proj-${Date.now()}`,
+      name: name.trim(),
+      children: [],
+    };
+    this.projects.push(project);
+    this.saveToStorage();
+    this.refresh();
+    vscode.window.showInformationMessage('已创建项目');
+  }
+
+  async deleteProject(project: Project): Promise<void> {
+    const confirm = await vscode.window.showWarningMessage(
+      `确定删除项目「${project.name}」？将同时删除其下所有集合与接口。`,
+      '删除',
+      '取消'
+    );
+    if (confirm !== '删除') return;
+    const idx = this.projects.findIndex((p) => p.id === project.id);
+    if (idx >= 0) {
+      this.projects.splice(idx, 1);
+      this.saveToStorage();
+      this.refresh();
+      vscode.window.showInformationMessage('已删除项目');
+    }
+  }
+
   async createCollection(project: Project): Promise<void> {
     const name = await vscode.window.showInputBox({
       prompt: '输入集合名称',

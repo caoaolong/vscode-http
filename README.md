@@ -1,71 +1,72 @@
-# vscode-http README
+# HTTP 客户端 (vscode-http)
 
-This is the README for your extension "vscode-http". After writing up a brief description, we recommend including the following sections.
+在 VS Code 侧边栏中使用的 HTTP 客户端扩展，支持项目/集合/接口的树形管理，以及 HTTP、SSE、WebSocket 三种请求类型。
 
-## Features
+## 功能特性
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **树形管理**：项目 → 集合 → 接口 → 实例，支持新建、删除、重命名
+- **三种接口类型**：
+  - **HTTP**：普通请求，支持 GET/POST/PUT/PATCH/DELETE，请求体支持 JSON、form-data、raw 等
+  - **SSE**：Server-Sent Events，支持连接/断开，实时展示服务端推送内容
+  - **WebSocket**：双向通信，支持连接/断开与消息收发
+- **多环境**：每个项目可配置多个环境（如开发/测试/生产），切换 baseUrl
+- **请求配置**：Query 参数、请求头、授权（Bearer/Basic/Api Key 等）以 Tab 形式组织
+- **实例**：可将某次请求的请求参数与响应结果保存为「实例」，便于复现与对比
+- **数据持久化**：项目数据保存在工作区 `.vscode-http` 或全局状态中
 
-For example if there is an image subfolder under your extension project workspace:
+## 安装
 
-\!\[feature X\]\(images/feature-x.png\)
+1. 在 VS Code 扩展市场搜索「HTTP 客户端」或 `vscode-http` 安装
+2. 或从 VSIX 安装：`code --install-extension xxx.vsix`
+3. 或本地开发：克隆仓库后按「开发」说明运行
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## 使用说明
 
-## Requirements
+### 打开视图
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+点击左侧活动栏的「HTTP 客户端」图标，展开「HTTP 请求」树视图。
 
-## Extension Settings
+### 项目与集合
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+- **新建项目**：点击树视图右上角 **+** 按钮，输入项目名称
+- **删除项目**：在项目节点右侧点击删除图标，确认后删除该项目及下属集合、接口
+- **环境管理**：点击项目节点，在弹窗中管理该项目的环境（名称、baseUrl）及当前选中环境
+- **添加集合**：在项目节点右侧点击 **+**，输入集合名称
+- **删除集合**：在集合节点右侧点击删除图标
 
-For example:
+### 接口
 
-This extension contributes the following settings:
+- **添加接口**：在集合节点右侧点击 **+**，依次输入名称、路径、接口类型（HTTP/SSE/WebSocket），HTTP 需再选请求方法
+- **删除接口**：在接口节点右侧点击删除图标
+- **发送/连接**：点击接口打开请求编辑页；HTTP 点击「发送」，SSE/WebSocket 点击「连接」；连接状态下「断开」高亮可点
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+### 请求编辑页
 
-## Known Issues
+- **请求**：名称、方法、URL（可选环境 baseUrl + 路径）、发送/连接/保存/保存为实例
+- **请求参数 / 请求头 / 授权**：以 Tab 切换；GET 时自动隐藏请求体区域
+- **请求体**：按类型切换（JSON、form-data、raw 等）
+- **响应**：状态码、响应头、响应体；SSE 为事件流，WebSocket 为消息列表
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+### 实例
 
-## Release Notes
+- **保存为实例**：HTTP 请求发送后，点击「保存为实例」，输入名称即可保存当前请求与响应
+- **查看实例**：在树中展开接口，点击某实例可打开只读预览（请求 + 响应快照）
+- **删除实例**：在实例节点右侧点击删除图标
 
-Users appreciate release notes as you update your extension.
+## 要求
 
-### 1.0.0
+- VS Code `^1.105.1`
+- 无额外运行时依赖
 
-Initial release of ...
+## 开发
 
-### 1.0.1
+```bash
+npm install
+npm run compile
+```
 
-Fixed issue #.
+在 VS Code 中按 F5 启动扩展开发主机，即可在「HTTP 请求」视图中调试。
 
-### 1.1.0
+## 许可证
 
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+见仓库根目录 LICENSE 文件（如有）。

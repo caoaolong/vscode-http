@@ -73,9 +73,20 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-http.addProject', () => treeProvider.createProject())
+	);
+
+	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-http.addCollection', async (item: vscode.TreeItem) => {
 			const project = item?.id ? treeProvider.getProjects().find((p) => p.id === item.id) : undefined;
 			if (project) await treeProvider.createCollection(project);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-http.deleteProject', async (item: vscode.TreeItem) => {
+			const project = item?.id ? treeProvider.getProjects().find((p) => p.id === item.id) : undefined;
+			if (project) await treeProvider.deleteProject(project);
 		})
 	);
 
