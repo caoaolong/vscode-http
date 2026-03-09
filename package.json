@@ -3,13 +3,14 @@
   "displayName": "vscode-http",
   "publisher": "codingsoul",
   "description": "A HTTP Client for VSCode",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.105.1"
   },
   "categories": [
     "Other"
   ],
+  "license": "MIT",
   "icon": "logo.png",
   "main": "./dist/extension.js",
   "contributes": {
