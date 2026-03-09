@@ -1,6 +1,7 @@
 {
   "name": "vscode-http",
   "displayName": "vscode-http",
+  "publisher": "codingsoul",
   "description": "A HTTP Client for VSCode",
   "version": "0.0.1",
   "engines": {
@@ -9,6 +10,7 @@
   "categories": [
     "Other"
   ],
+  "icon": "logo.png",
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -16,7 +18,7 @@
         {
           "id": "vscode-http",
           "title": "HTTP 客户端",
-          "icon": "./resources/icon.svg"
+          "icon": "./logo.svg"
         }
       ]
     },
