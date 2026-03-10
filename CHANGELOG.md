@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+（暂无）
+
+## [0.0.5]
+
+### 修复
+
+- 修复发布后安装的扩展侧边栏图标不显示：将 Activity Bar 视图容器图标改为 PNG（`resources/icon.png`），避免部分环境下 SVG 因 MIME 类型或加载策略导致的显示问题。
+
 ### 变更
 
 - 在 `package.json` 中补充 `repository` 字段，指向 GitHub 仓库，消除 `vsce package` 时的缺失仓库警告。
