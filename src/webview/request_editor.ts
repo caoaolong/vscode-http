@@ -38,21 +38,22 @@ export interface ResponseData {
   error?: string;
 }
 
+/** Monaco 从 CDN 加载，避免将整包打入 vsix（约 73MB） */
+const MONACO_CDN = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.55.1/min';
+
 function getHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
   const htmlPath = path.join(context.extensionPath, 'resources', 'request_editor.html');
   let html = fs.readFileSync(htmlPath, 'utf8');
-  const monacoUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'monaco-editor', 'min'));
-  const monacoUriStr = monacoUri.toString().replace(/\/$/, '');
+  const monacoUriStr = MONACO_CDN;
   html = html.replace(/\{\{MONACO_URI\}\}/g, monacoUriStr);
-  // CSP: 只加入非空源并规范格式，避免出现无效 source（如空串）导致 "invalid source: '<URL>'" 警告
-  const scriptSrcParts = ["'unsafe-inline'", webview.cspSource?.trim(), monacoUriStr].filter((s) => s != null && s !== '');
+  const scriptSrcParts = ["'unsafe-inline'", webview.cspSource?.trim(), 'https://cdn.jsdelivr.net'].filter((s) => s != null && s !== '');
   const csp = [
     "default-src 'none'",
     `script-src ${scriptSrcParts.join(' ')}`,
-    `style-src 'unsafe-inline' ${webview.cspSource ?? ''}`,
-    `font-src ${webview.cspSource ?? ''}`,
+    `style-src 'unsafe-inline' ${webview.cspSource ?? ''} https://cdn.jsdelivr.net`,
+    `font-src ${webview.cspSource ?? ''} https://cdn.jsdelivr.net`,
     `img-src data: ${webview.cspSource ?? ''}`,
-    "worker-src blob:",
+    "worker-src blob: https://cdn.jsdelivr.net",
     "connect-src https: http: wss: ws:;",
   ].join('; ');
   html = html.replace(/\{\{CSP\}\}/g, csp);
@@ -325,7 +326,6 @@ export function createRequestEditorPanel(
   const panel = vscode.window.createWebviewPanel('vscode-http.requestEditor', title, vscode.ViewColumn.One, {
     enableScripts: true,
     retainContextWhenHidden: true,
-    localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'node_modules', 'monaco-editor')],
   });
 
   registerPanel(panelId, panel);

@@ -2,7 +2,6 @@
 .vscode-test/**
 out/**
 node_modules/*
-!node_modules/monaco-editor/
 src/**
 .gitignore
 .yarnrc

@@ -3,7 +3,7 @@
   "displayName": "vscode-http",
   "publisher": "codingsoul",
   "description": "A HTTP Client for VSCode",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.105.1"
   },
@@ -149,7 +149,6 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "monaco-editor": "^0.55.1",
     "ws": "^8.18.0"
   }
 }
