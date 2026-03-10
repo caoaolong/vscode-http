@@ -23,7 +23,7 @@
         {
           "id": "vscode-http",
           "title": "HTTP 客户端",
-          "icon": "./resources/icon.svg"
+          "icon": "./resources/icon.png"
         }
       ]
     },
