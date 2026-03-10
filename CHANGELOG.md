@@ -4,7 +4,9 @@
 
 ## [Unreleased]
 
-（暂无）
+### 变更
+
+- 在 `package.json` 中补充 `repository` 字段，指向 GitHub 仓库，消除 `vsce package` 时的缺失仓库警告。
 
 ## [0.0.4]
 
