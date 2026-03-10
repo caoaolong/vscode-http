@@ -3,7 +3,7 @@
   "displayName": "vscode-http",
   "publisher": "codingsoul",
   "description": "A HTTP Client for VSCode",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.105.1"
   },
@@ -19,7 +19,7 @@
         {
           "id": "vscode-http",
           "title": "HTTP 客户端",
-          "icon": "./logo.svg"
+          "icon": "./resources/icon.svg"
         }
       ]
     },
