@@ -24,6 +24,10 @@ export interface ResponseSnapshot {
   statusText: string;
   headers?: Record<string, string>;
   body: string;
+  /** 响应体类型，用于实例/预览中展示图片或下载二进制 */
+  bodyKind?: 'text' | 'image' | 'binary';
+  bodyBase64?: string;
+  suggestedFilename?: string;
   error?: string;
 }
 

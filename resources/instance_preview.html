@@ -75,6 +75,22 @@
       -ms-overflow-style: none;
     }
     .scrollbar-hidden::-webkit-scrollbar { display: none; }
+    .res-body-image, .res-body-binary { display: none; margin-top: 8px; }
+    .res-body-image.show, .res-body-binary.show { display: block; }
+    .res-body-image img {
+      max-width: 100%;
+      max-height: 360px;
+      object-fit: contain;
+      border-radius: 6px;
+      border: 1px solid var(--vscode-input-border);
+    }
+    .res-body-binary .res-binary-desc { font-size: 12px; color: var(--vscode-descriptionForeground); margin-bottom: 8px; }
+    .btn-download-preview {
+      padding: 6px 14px; font-size: 12px; cursor: pointer;
+      background: var(--vscode-button-background); color: var(--vscode-button-foreground);
+      border: none; border-radius: 6px;
+    }
+    .btn-download-preview:hover { opacity: 0.9; }
   </style>
 </head>
 <body>
@@ -105,9 +121,19 @@
       <div class="preview-label">响应头</div>
       <pre class="preview-value scrollbar-hidden" id="resHeaders">-</pre>
     </div>
-    <div class="preview-row">
+    <div class="preview-row" id="resBodyTextWrap">
       <div class="preview-label">响应体</div>
       <pre class="preview-value scrollbar-hidden" id="resBody">-</pre>
+    </div>
+    <div class="preview-row res-body-image" id="resBodyImageWrap">
+      <div class="preview-label">响应体（图片）</div>
+      <img id="resBodyImage" alt="响应图片" />
+      <button type="button" class="btn-download-preview" id="resBodyImageDownloadBtn">下载图片</button>
+    </div>
+    <div class="preview-row res-body-binary" id="resBodyBinaryWrap">
+      <div class="preview-label">响应体</div>
+      <span class="res-binary-desc" id="resBodyBinaryDesc">二进制内容</span>
+      <button type="button" class="btn-download-preview" id="resBodyBinaryDownloadBtn">下载文件</button>
     </div>
   </div>
 
@@ -166,7 +192,42 @@
           statusEl.className = 'response-status ' + (res.status >= 200 && res.status < 300 ? 'success' : 'error');
         }
         document.getElementById('resHeaders').textContent = formatHeaders(res.headers);
-        document.getElementById('resBody').textContent = formatBody(res.body);
+        var bodyKind = res.bodyKind || 'text';
+        var resBody = document.getElementById('resBody');
+        var resBodyTextWrap = document.getElementById('resBodyTextWrap');
+        var resBodyImageWrap = document.getElementById('resBodyImageWrap');
+        var resBodyBinaryWrap = document.getElementById('resBodyBinaryWrap');
+        var resBodyImage = document.getElementById('resBodyImage');
+        var resBodyBinaryDesc = document.getElementById('resBodyBinaryDesc');
+        resBodyTextWrap.style.display = 'block';
+        resBodyImageWrap.classList.remove('show');
+        resBodyBinaryWrap.classList.remove('show');
+        if (bodyKind === 'image' && res.bodyBase64) {
+          resBodyTextWrap.style.display = 'none';
+          var ct = (res.headers && (res.headers['Content-Type'] || res.headers['content-type'])) || 'image/png';
+          ct = String(ct).split(';')[0].trim();
+          resBodyImage.src = 'data:' + ct + ';base64,' + res.bodyBase64;
+          resBodyImageWrap.classList.add('show');
+          resBodyImageWrap.dataset.bodyBase64 = res.bodyBase64;
+          resBodyImageWrap.dataset.suggestedFilename = res.suggestedFilename || 'image.png';
+        } else if (bodyKind === 'binary' && res.bodyBase64) {
+          resBodyTextWrap.style.display = 'none';
+          var len = Math.floor((res.bodyBase64.length * 3) / 4);
+          resBodyBinaryDesc.textContent = '二进制内容 (' + len + ' 字节)';
+          resBodyBinaryWrap.classList.add('show');
+          resBodyBinaryWrap.dataset.bodyBase64 = res.bodyBase64;
+          resBodyBinaryWrap.dataset.suggestedFilename = res.suggestedFilename || 'download.bin';
+        } else {
+          resBody.textContent = formatBody(res.body);
+        }
+        document.getElementById('resBodyImageDownloadBtn').onclick = function() {
+          var w = document.getElementById('resBodyImageWrap');
+          if (w && w.dataset.bodyBase64) vscode.postMessage({ type: 'downloadResponse', bodyBase64: w.dataset.bodyBase64, suggestedFilename: w.dataset.suggestedFilename || 'image.png' });
+        };
+        document.getElementById('resBodyBinaryDownloadBtn').onclick = function() {
+          var w = document.getElementById('resBodyBinaryWrap');
+          if (w && w.dataset.bodyBase64) vscode.postMessage({ type: 'downloadResponse', bodyBase64: w.dataset.bodyBase64, suggestedFilename: w.dataset.suggestedFilename || 'download.bin' });
+        };
       });
     })();
   </script>

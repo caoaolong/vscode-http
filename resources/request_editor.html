@@ -93,6 +93,21 @@
     }
     .url-input.with-base { border-radius: 0 6px 6px 0; border-left: none; }
     .url-input:focus { outline: none; border-color: var(--vscode-focusBorder); }
+    .request-row-first { flex-wrap: wrap; }
+    .request-row-second { margin-top: 8px; }
+    .request-row-second .url-wrap-full { flex: 1; min-width: 0; }
+    .request-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+    .path-params-input {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 6px;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    .path-params-input:focus { outline: none; border-color: var(--vscode-focusBorder); }
     .req-name-label { flex: 0 0 40px; font-size: 12px; color: var(--vscode-descriptionForeground); }
     .req-name-input {
       flex: 1;
@@ -377,6 +392,21 @@
       -ms-overflow-style: none;
     }
     #responseBodyFullscreen .fullscreen-body::-webkit-scrollbar { display: none; }
+    #responseBodyFullscreen .fullscreen-body pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+    #responseBodyFullscreen .fullscreen-body .fullscreen-image-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+    #responseBodyFullscreen .fullscreen-body .fullscreen-image-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    #responseBodyFullscreen .fullscreen-body .btn-download-preview { padding: 6px 14px; font-size: 12px; cursor: pointer; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 6px; }
+    #responseBodyFullscreen .fullscreen-body .btn-download-preview:hover { opacity: 0.9; }
+    .response-image-area, .response-binary-area { display: none; margin-top: 8px; }
+    .response-image-area.show, .response-binary-area.show { display: flex; flex-direction: column; gap: 10px; }
+    .response-image-area img { max-width: 100%; max-height: 320px; object-fit: contain; border-radius: 6px; border: 1px solid var(--vscode-input-border); }
+    .response-binary-area .response-binary-desc { font-size: 12px; color: var(--vscode-descriptionForeground); }
+    .btn-download-image, .btn-download-binary {
+      padding: 6px 14px; font-size: 12px; cursor: pointer;
+      background: var(--vscode-button-background); color: var(--vscode-button-foreground);
+      border: none; border-radius: 6px; align-self: flex-start;
+    }
+    .btn-download-image:hover, .btn-download-binary:hover { opacity: 0.9; }
     .scrollbar-hidden {
       scrollbar-width: none;
       -ms-overflow-style: none;
@@ -387,11 +417,9 @@
 <body>
   <div class="section">
     <div class="section-title">请求</div>
-    <div class="row">
+    <div class="row request-row-first">
       <label class="req-name-label">名称</label>
       <input type="text" class="req-name-input" id="requestName" placeholder="请求名称" />
-    </div>
-    <div class="row">
       <span class="interface-type-badge" id="interfaceTypeBadge">HTTP</span>
       <select class="method-select" id="method">
         <option value="GET">GET</option>
@@ -400,15 +428,19 @@
         <option value="PATCH">PATCH</option>
         <option value="DELETE">DELETE</option>
       </select>
-      <div class="url-wrap">
-        <select class="url-env-select hidden" id="urlEnvSelect" title="选择环境（baseUrl）"></select>
+      <select class="url-env-select hidden" id="urlEnvSelect" title="选择环境（baseUrl）"></select>
+    </div>
+    <div class="row request-row-second">
+      <div class="url-wrap url-wrap-full">
         <input type="text" class="url-input" id="urlPath" placeholder="路径，如 /users 或 /api/users/1" />
       </div>
-      <button class="btn" id="sendBtn">发送</button>
-      <button class="btn" id="connectBtn" style="display:none">连接</button>
-      <button class="btn btn-secondary" id="disconnectBtn" style="display:none">断开</button>
-      <button class="btn btn-secondary" id="saveBtn">保存</button>
-      <button class="btn btn-secondary" id="saveAsInstanceBtn">保存为实例</button>
+      <div class="request-actions">
+        <button class="btn" id="sendBtn">发送</button>
+        <button class="btn" id="connectBtn" style="display:none">连接</button>
+        <button class="btn btn-secondary" id="disconnectBtn" style="display:none">断开</button>
+        <button class="btn btn-secondary" id="saveBtn">保存</button>
+        <button class="btn btn-secondary" id="saveAsInstanceBtn">保存为实例</button>
+      </div>
     </div>
     <div class="row ws-send-row" id="wsSendRow" style="display:none">
       <input type="text" class="url-input" id="wsMessageInput" placeholder="输入要发送的消息" style="flex:1" />
@@ -419,15 +451,20 @@
   <div class="section" id="sectionQueryParams">
     <div class="param-auth-header-tabs">
       <button type="button" class="param-auth-header-tab active" data-tab="params">请求参数</button>
+      <button type="button" class="param-auth-header-tab" data-tab="pathParams">路径参数</button>
       <button type="button" class="param-auth-header-tab" data-tab="headers">请求头</button>
       <button type="button" class="param-auth-header-tab" data-tab="auth">授权</button>
     </div>
     <div id="panelParams" class="param-auth-header-panel active">
-      <div class="section-title" style="margin-bottom:10px">Query 参数（顺序会保留）</div>
+      <div class="section-title" style="margin-bottom:10px">Query 参数</div>
       <div id="queryParamsRows"></div>
       <div class="header-add-actions">
         <button class="btn add-btn btn-secondary" id="addQueryParam">+ 添加参数</button>
       </div>
+    </div>
+    <div id="panelPathParams" class="param-auth-header-panel">
+      <div class="section-title" style="margin-bottom:10px">路径参数</div>
+      <input type="text" class="path-params-input" id="pathParamsInput" placeholder="如 id=1 或 id=1&name=foo，将用 ? 拼接到路径后" />
     </div>
     <div id="panelHeaders" class="param-auth-header-panel">
       <div class="section-title" style="margin-bottom:10px">请求头</div>
@@ -556,12 +593,20 @@
           <button type="button" class="btn-fullscreen" id="responseBodyFullscreenBtn">全屏查看</button>
         </div>
         <pre class="response-body scrollbar-hidden" id="responseBody">发送请求后显示响应</pre>
+        <div id="responseImageArea" class="response-image-area">
+          <img id="responseImage" alt="响应图片" />
+          <button type="button" class="btn-download-image" id="responseImageDownloadBtn">下载图片</button>
+        </div>
+        <div id="responseBinaryArea" class="response-binary-area">
+          <span class="response-binary-desc" id="responseBinaryDesc">二进制内容</span>
+          <button type="button" class="btn-download-binary" id="responseBinaryDownloadBtn">下载文件</button>
+        </div>
       </div>
       <div id="responseBodyFullscreen">
         <div class="fullscreen-toolbar">
           <button type="button" class="fullscreen-close" id="responseBodyFullscreenClose">退出全屏</button>
         </div>
-        <pre class="fullscreen-body scrollbar-hidden" id="responseBodyFullscreenContent"></pre>
+        <div class="fullscreen-body" id="responseBodyFullscreenContent"></div>
       </div>
     </div>
   </div>
@@ -666,6 +711,8 @@
     }
     const responseStatus = document.getElementById('responseStatus');
     const responseBody = document.getElementById('responseBody');
+    const responseImageAreaEl = document.getElementById('responseImageArea');
+    const responseBinaryAreaEl = document.getElementById('responseBinaryArea');
     const responseHeadersEl = document.getElementById('responseHeaders');
     /** 最近一次响应的完整数据，用于「保存为实例」 */
     let lastResponsePayload = null;
@@ -906,7 +953,7 @@
 
     function switchParamAuthHeaderTab(tabId) {
       document.querySelectorAll('.param-auth-header-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
-      var panels = { params: 'panelParams', headers: 'panelHeaders', auth: 'panelAuth' };
+      var panels = { params: 'panelParams', pathParams: 'panelPathParams', headers: 'panelHeaders', auth: 'panelAuth' };
       Object.keys(panels).forEach(k => {
         var el = document.getElementById(panels[k]);
         if (el) el.classList.toggle('active', k === tabId);
@@ -1082,14 +1129,22 @@
       return env ? env.baseUrl : '';
     }
 
+    function getPathParamsInput() {
+      var el = document.getElementById('pathParamsInput');
+      return el ? el.value.trim() : '';
+    }
+
     function getFullUrl() {
       let pathVal = urlPath.value.trim();
+      const pathOnly = pathVal.includes('?') ? pathVal.split('?')[0] : pathVal;
+      const pathParamsStr = getPathParamsInput();
       const params = collectQueryParams();
-      if (params.length > 0) {
-        const pathOnly = pathVal.includes('?') ? pathVal.split('?')[0] : pathVal;
-        const query = params.map(p => encodeURIComponent(p.key) + '=' + encodeURIComponent(p.value)).join('&');
-        pathVal = pathOnly + (query ? '?' + query : '');
-      }
+      const queryParts = [];
+      if (pathParamsStr) queryParts.push(pathParamsStr);
+      if (params.length > 0) queryParts.push(params.map(p => encodeURIComponent(p.key) + '=' + encodeURIComponent(p.value)).join('&'));
+      const query = queryParts.join('&');
+      if (query) pathVal = pathOnly + '?' + query;
+      else pathVal = pathOnly;
       const baseUrl = getSelectedBaseUrl();
       if (baseUrl) {
         const base = baseUrl.replace(/\/+$/, '');
@@ -1192,6 +1247,10 @@
       setSendLoading(true);
       responseStatus.textContent = '发送中…';
       responseStatus.className = 'response-status';
+      responseBody.style.display = 'block';
+      responseBody.textContent = '';
+      if (responseImageAreaEl) responseImageAreaEl.classList.remove('show');
+      if (responseBinaryAreaEl) responseBinaryAreaEl.classList.remove('show');
       const payload = getRequestPayload();
       requestFullContent.textContent = formatFullRequest(payload);
       requestFullContent.parentElement.open = true;
@@ -1208,7 +1267,43 @@
       const btn = document.getElementById('responseBodyFullscreenBtn');
       const closeBtn = document.getElementById('responseBodyFullscreenClose');
       function openFullscreen() {
-        content.textContent = responseBody.textContent || '(空)';
+        content.innerHTML = '';
+        if (responseImageAreaEl && responseImageAreaEl.classList.contains('show') && responseImageAreaEl.dataset.bodyBase64) {
+          var ct = (lastResponsePayload && lastResponsePayload.headers && (lastResponsePayload.headers['Content-Type'] || lastResponsePayload.headers['content-type'])) || 'image/png';
+          ct = String(ct).split(';')[0].trim();
+          var wrap = document.createElement('div');
+          wrap.className = 'fullscreen-image-wrap';
+          var img = document.createElement('img');
+          img.src = 'data:' + ct + ';base64,' + responseImageAreaEl.dataset.bodyBase64;
+          img.alt = '响应图片';
+          var dlBtn = document.createElement('button');
+          dlBtn.type = 'button';
+          dlBtn.className = 'btn-download-preview';
+          dlBtn.textContent = '下载图片';
+          dlBtn.onclick = function() { vscode.postMessage({ type: 'downloadResponse', bodyBase64: responseImageAreaEl.dataset.bodyBase64, suggestedFilename: responseImageAreaEl.dataset.suggestedFilename || 'image.png' }); };
+          wrap.appendChild(img);
+          wrap.appendChild(dlBtn);
+          content.appendChild(wrap);
+        } else if (responseBinaryAreaEl && responseBinaryAreaEl.classList.contains('show') && responseBinaryAreaEl.dataset.bodyBase64) {
+          var desc = responseBinaryAreaEl.querySelector('.response-binary-desc');
+          var span = document.createElement('span');
+          span.className = 'res-binary-desc';
+          span.style.display = 'block';
+          span.style.marginBottom = '8px';
+          span.textContent = desc ? desc.textContent : '二进制内容';
+          var dlBtn = document.createElement('button');
+          dlBtn.type = 'button';
+          dlBtn.className = 'btn-download-preview';
+          dlBtn.textContent = '下载文件';
+          dlBtn.onclick = function() { vscode.postMessage({ type: 'downloadResponse', bodyBase64: responseBinaryAreaEl.dataset.bodyBase64, suggestedFilename: responseBinaryAreaEl.dataset.suggestedFilename || 'download.bin' }); };
+          content.appendChild(span);
+          content.appendChild(dlBtn);
+        } else {
+          var pre = document.createElement('pre');
+          pre.className = 'scrollbar-hidden';
+          pre.textContent = responseBody.textContent || '(空)';
+          content.appendChild(pre);
+        }
         overlay.classList.add('show');
       }
       function closeFullscreen() {
@@ -1378,8 +1473,37 @@
           responseHeadersWrap.style.display = 'none';
         }
       }
-      responseBody.textContent = formatResponseBody(msg.body || '(空)');
-      lastResponsePayload = { status: msg.status, statusText: msg.statusText || '', headers: msg.headers || {}, body: msg.body || '', error: msg.error };
+      var bodyKind = msg.bodyKind || 'text';
+      var responseImage = document.getElementById('responseImage');
+      var responseBinaryDesc = document.getElementById('responseBinaryDesc');
+      responseBody.style.display = 'block';
+      if (responseImageAreaEl) responseImageAreaEl.classList.remove('show');
+      if (responseBinaryAreaEl) responseBinaryAreaEl.classList.remove('show');
+      if (msg.error) {
+        responseBody.textContent = '(空)';
+      } else if (bodyKind === 'image' && msg.bodyBase64) {
+        responseBody.style.display = 'none';
+        if (responseImageAreaEl && responseImage) {
+          var ct = (msg.headers && (msg.headers['Content-Type'] || msg.headers['content-type'])) || 'image/png';
+          ct = ct.split(';')[0].trim();
+          responseImage.src = 'data:' + ct + ';base64,' + msg.bodyBase64;
+          responseImageAreaEl.classList.add('show');
+          responseImageAreaEl.dataset.bodyBase64 = msg.bodyBase64;
+          responseImageAreaEl.dataset.suggestedFilename = msg.suggestedFilename || 'image.png';
+        }
+      } else if (bodyKind === 'binary' && msg.bodyBase64) {
+        responseBody.style.display = 'none';
+        if (responseBinaryAreaEl && responseBinaryDesc) {
+          var bytes = msg.bodyByteLength != null ? msg.bodyByteLength : Math.floor((msg.bodyBase64.length * 3) / 4);
+          responseBinaryDesc.textContent = '二进制内容 (' + bytes + ' 字节)';
+          responseBinaryAreaEl.classList.add('show');
+          responseBinaryAreaEl.dataset.bodyBase64 = msg.bodyBase64;
+          responseBinaryAreaEl.dataset.suggestedFilename = msg.suggestedFilename || 'download.bin';
+        }
+      } else {
+        responseBody.textContent = formatResponseBody(msg.body || '(空)');
+      }
+      lastResponsePayload = { status: msg.status, statusText: msg.statusText || '', headers: msg.headers || {}, body: msg.body || '', bodyKind: msg.bodyKind, bodyBase64: msg.bodyBase64, suggestedFilename: msg.suggestedFilename, error: msg.error };
       }
   });
 
@@ -1394,6 +1518,15 @@
         requestPayload: getRequestPayload(),
         responsePayload: lastResponsePayload
       });
+    };
+
+    document.getElementById('responseImageDownloadBtn').onclick = function() {
+      if (!responseImageAreaEl || !responseImageAreaEl.dataset.bodyBase64) return;
+      vscode.postMessage({ type: 'downloadResponse', bodyBase64: responseImageAreaEl.dataset.bodyBase64, suggestedFilename: responseImageAreaEl.dataset.suggestedFilename || 'image.png' });
+    };
+    document.getElementById('responseBinaryDownloadBtn').onclick = function() {
+      if (!responseBinaryAreaEl || !responseBinaryAreaEl.dataset.bodyBase64) return;
+      vscode.postMessage({ type: 'downloadResponse', bodyBase64: responseBinaryAreaEl.dataset.bodyBase64, suggestedFilename: responseBinaryAreaEl.dataset.suggestedFilename || 'download.bin' });
     };
   </script>
 </body>

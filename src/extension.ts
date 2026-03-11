@@ -67,12 +67,6 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('vscode-http.helloWorld', () => {
-			vscode.window.showInformationMessage('Hello World from vscode-http!');
-		})
-	);
-
-	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-http.addProject', () => treeProvider.createProject())
 	);
 

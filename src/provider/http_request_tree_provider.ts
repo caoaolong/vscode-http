@@ -337,7 +337,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     this.projects.push(project);
     this.saveToStorage();
     this.refresh();
-    vscode.window.showInformationMessage('已创建项目');
   }
 
   async deleteProject(project: Project): Promise<void> {
@@ -352,7 +351,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
       this.projects.splice(idx, 1);
       this.saveToStorage();
       this.refresh();
-      vscode.window.showInformationMessage('已删除项目');
     }
   }
 
@@ -371,7 +369,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     project.children.push(coll);
     this.saveToStorage();
     this.refresh();
-    vscode.window.showInformationMessage('已创建集合');
   }
 
   async deleteCollection(collection: Collection): Promise<void> {
@@ -388,7 +385,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
       project.children.splice(idx, 1);
       this.saveToStorage();
       this.refresh();
-      vscode.window.showInformationMessage('已删除集合');
     }
   }
 
@@ -455,7 +451,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     collection.children.push(iface);
     this.saveToStorage();
     this.refresh();
-    vscode.window.showInformationMessage('已创建接口');
     return iface;
   }
 
@@ -470,7 +465,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
         project.children.splice(idx, 1);
         this.saveToStorage();
         this.refresh();
-        // vscode.window.showInformationMessage('已删除接口');
       }
     } else {
       const collection = project.children.find((c) => 'children' in c && (c as Collection).id === iface.parentId) as Collection | undefined;
@@ -480,7 +474,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
         collection.children.splice(idx, 1);
         this.saveToStorage();
         this.refresh();
-        // vscode.window.showInformationMessage('已删除接口');
       }
     }
   }
@@ -532,7 +525,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     }
     this.saveToStorage();
     this.refresh();
-    // vscode.window.showInformationMessage('已删除');
   }
 
   updateInterface(iface: Interface, data: {
@@ -571,7 +563,6 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
     iface.instances.push(instance);
     this.saveToStorage();
     this.refresh();
-    vscode.window.showInformationMessage(`已保存实例「${instance.name}」`);
   }
 
   getInstanceById(id: string): Instance | undefined {
@@ -611,14 +602,12 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
       list.splice(idx, 1);
       this.saveToStorage();
       this.refresh();
-      vscode.window.showInformationMessage('已删除实例');
     }
   }
 
   async setCurrentEnvironment(project: Project): Promise<void> {
     const envs = project.environments ?? [];
     if (envs.length === 0) {
-      vscode.window.showInformationMessage('请先添加环境');
       return;
     }
     const chosen = await vscode.window.showQuickPick(

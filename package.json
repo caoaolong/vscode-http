@@ -3,7 +3,7 @@
   "displayName": "vscode-http",
   "publisher": "codingsoul",
   "description": "A HTTP Client for VSCode",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "engines": {
     "vscode": "^1.105.1"
   },
@@ -37,10 +37,6 @@
       ]
     },
     "commands": [
-      {
-        "command": "vscode-http.helloWorld",
-        "title": "Hello World"
-      },
       {
         "command": "vscode-http.addProject",
         "title": "新建项目",

@@ -35,6 +35,14 @@ export interface ResponseData {
   statusText: string;
   headers: Record<string, string>;
   body: string;
+  /** 响应体类型：图片直接展示+下载，其他二进制仅下载 */
+  bodyKind?: 'text' | 'image' | 'binary';
+  /** 二进制/图片时的 base64 内容 */
+  bodyBase64?: string;
+  /** 建议的文件名（来自 Content-Disposition 或根据类型生成） */
+  suggestedFilename?: string;
+  /** 二进制/图片时的字节数（便于前端显示） */
+  bodyByteLength?: number;
   error?: string;
 }
 
@@ -223,6 +231,62 @@ function connectWebSocket(
   return { close, send };
 }
 
+function getHeader(headers: Record<string, string>, name: string): string {
+  const lower = name.toLowerCase();
+  const entry = Object.entries(headers).find(([k]) => k.toLowerCase() === lower);
+  return entry ? entry[1] : '';
+}
+
+function parseSuggestedFilename(contentDisposition: string, contentType: string): string | null {
+  if (!contentDisposition) return null;
+  const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i)
+    || contentDisposition.match(/filename=["']?([^"';]+)["']?/i);
+  if (match && match[1]) return match[1].trim();
+  return null;
+}
+
+const IMAGE_TYPES = /^image\/(png|jpeg|jpg|gif|webp|bmp|svg\+xml|x-icon|ico)$/i;
+const TEXT_TYPES = /^(text\/|application\/(json|xml|javascript|ecmascript|x-www-form-urlencoded|graphql))/i;
+
+function classifyResponseBody(
+  buf: Buffer,
+  contentType: string
+): { body: string; bodyKind: 'text' | 'image' | 'binary'; bodyBase64?: string } {
+  const base64 = buf.toString('base64');
+  const type = contentType.split(';')[0].trim().toLowerCase();
+  if (IMAGE_TYPES.test(type)) {
+    return { body: '', bodyKind: 'image', bodyBase64: base64 };
+  }
+  if (TEXT_TYPES.test(type) || type === 'application/javascript') {
+    try {
+      const body = buf.toString('utf8');
+      return { body, bodyKind: 'text' };
+    } catch {
+      return { body: '', bodyKind: 'binary', bodyBase64: base64 };
+    }
+  }
+  return { body: '', bodyKind: 'binary', bodyBase64: base64 };
+}
+
+function defaultImageFilename(contentType: string): string {
+  const type = contentType.split(';')[0].trim().toLowerCase();
+  const map: Record<string, string> = {
+    'image/png': 'image.png',
+    'image/jpeg': 'image.jpg',
+    'image/jpg': 'image.jpg',
+    'image/gif': 'image.gif',
+    'image/webp': 'image.webp',
+    'image/bmp': 'image.bmp',
+    'image/svg+xml': 'image.svg',
+    'image/x-icon': 'image.ico',
+  };
+  return map[type] || 'image.png';
+}
+
+function defaultBinaryFilename(_contentType: string): string {
+  return 'download.bin';
+}
+
 async function sendHttpRequest(data: RequestData): Promise<ResponseData> {
   return new Promise((resolve) => {
     try {
@@ -269,16 +333,30 @@ async function sendHttpRequest(data: RequestData): Promise<ResponseData> {
         const chunks: Buffer[] = [];
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => {
-          const raw = Buffer.concat(chunks).toString('utf8');
+          const buf = Buffer.concat(chunks);
           const resHeaders: Record<string, string> = {};
           for (const [k, v] of Object.entries(res.headers)) {
             if (typeof v === 'string') resHeaders[k] = v;
           }
+          const contentType = getHeader(resHeaders, 'content-type');
+          const contentDisposition = getHeader(resHeaders, 'content-disposition');
+          let suggestedFilename = parseSuggestedFilename(contentDisposition, contentType);
+          const { body, bodyKind, bodyBase64 } = classifyResponseBody(buf, contentType);
+          if ((bodyKind === 'image' || bodyKind === 'binary') && !suggestedFilename) {
+            suggestedFilename = bodyKind === 'image'
+              ? defaultImageFilename(contentType)
+              : defaultBinaryFilename(contentType);
+          }
+          const bodyByteLength = bodyKind === 'image' || bodyKind === 'binary' ? buf.length : undefined;
           resolve({
             status: res.statusCode ?? 0,
             statusText: res.statusMessage ?? '',
             headers: resHeaders,
-            body: raw,
+            body,
+            bodyKind,
+            bodyBase64,
+            suggestedFilename: suggestedFilename || undefined,
+            bodyByteLength,
           });
         });
       });
@@ -386,9 +464,9 @@ export function createRequestEditorPanel(
             formData: msg.formData,
             formUrlEncoded: msg.formUrlEncoded,
             binaryBase64: msg.binaryBase64,
-          }).then((result) => {
+          }).then((result: ResponseData) => {
             panel.webview.postMessage({ type: 'response', ...result });
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             panel.webview.postMessage({
               type: 'response',
               status: 0,
@@ -397,6 +475,25 @@ export function createRequestEditorPanel(
               body: '',
               error: err instanceof Error ? err.message : String(err),
             });
+          });
+        } else if (msg.type === 'downloadResponse') {
+          const base64 = msg.bodyBase64 as string | undefined;
+          const suggestedFilename = (msg.suggestedFilename as string) || 'download.bin';
+          if (!base64) {
+            vscode.window.showWarningMessage('无内容可下载');
+            return;
+          }
+          vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(suggestedFilename),
+            saveLabel: '保存',
+          }).then((uri) => {
+            if (!uri) return;
+            try {
+              const buf = Buffer.from(base64, 'base64');
+              fs.writeFileSync(uri.fsPath, buf);
+            } catch (e) {
+              vscode.window.showErrorMessage('保存失败: ' + (e instanceof Error ? e.message : String(e)));
+            }
           });
         } else if (msg.type === 'saveRequest') {
           const data: RequestData = {
@@ -412,7 +509,6 @@ export function createRequestEditorPanel(
             auth: msg.auth,
           };
           onSave(iface, data);
-          vscode.window.showInformationMessage('已保存');
         } else if (msg.type === 'saveAsInstance' && onSaveAsInstance) {
           const rawReq = msg.requestPayload as RequestData | undefined;
           const rawRes = msg.responsePayload as ResponseData | undefined;
@@ -441,6 +537,9 @@ export function createRequestEditorPanel(
               statusText: rawRes.statusText,
               headers: rawRes.headers,
               body: rawRes.body,
+              bodyKind: rawRes.bodyKind,
+              bodyBase64: rawRes.bodyBase64,
+              suggestedFilename: rawRes.suggestedFilename,
               error: rawRes.error,
             };
             onSaveAsInstance(iface, name.trim(), requestSnapshot, responseSnapshot);
