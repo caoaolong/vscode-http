@@ -1,154 +1,155 @@
 {
-  "name": "vscode-http",
-  "displayName": "vscode-http",
-  "publisher": "codingsoul",
-  "description": "A HTTP Client for VSCode",
-  "version": "0.0.6",
-  "engines": {
-    "vscode": "^1.105.1"
-  },
-  "categories": [
-    "Other"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/caoaolong/vscode-http.git"
-  },
-  "icon": "logo.png",
-  "main": "./dist/extension.js",
-  "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "vscode-http",
-          "title": "HTTP 客户端",
-          "icon": "./resources/icon.png"
-        }
-      ]
+    "name": "vscode-http",
+    "displayName": "vscode-http",
+    "publisher": "codingsoul",
+    "description": "A HTTP Client for VSCode",
+    "version": "0.0.7",
+    "engines": {
+        "vscode": "^1.105.1"
     },
-    "views": {
-      "vscode-http": [
-        {
-          "id": "vscode-http.requestTree",
-          "name": "HTTP 请求",
-          "icon": "$(link)"
-        }
-      ]
-    },
-    "commands": [
-      {
-        "command": "vscode-http.addProject",
-        "title": "新建项目",
-        "icon": "$(add)"
-      },
-      {
-        "command": "vscode-http.manageEnvironments",
-        "title": "环境管理"
-      },
-      {
-        "command": "vscode-http.manageCollection",
-        "title": "管理集合"
-      },
-      {
-        "command": "vscode-http.addCollection",
-        "title": "添加集合",
-        "icon": "$(add)"
-      },
-      {
-        "command": "vscode-http.addInterface",
-        "title": "添加接口",
-        "icon": "$(add)"
-      },
-      {
-        "command": "vscode-http.deleteCollection",
-        "title": "删除集合",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "vscode-http.deleteInterface",
-        "title": "删除接口",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "vscode-http.deleteInstance",
-        "title": "删除实例",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "vscode-http.deleteProject",
-        "title": "删除",
-        "icon": "$(trash)"
-      }
+    "categories": [
+        "Other"
     ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "vscode-http.addProject",
-          "when": "view == vscode-http.requestTree",
-          "group": "navigation"
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/caoaolong/vscode-http.git"
+    },
+    "icon": "logo.png",
+    "main": "./dist/extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "vscode-http",
+                    "title": "HTTP 客户端",
+                    "icon": "./resources/icon.png"
+                }
+            ]
+        },
+        "views": {
+            "vscode-http": [
+                {
+                    "id": "vscode-http.requestTree",
+                    "name": "HTTP 请求",
+                    "icon": "$(link)"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "vscode-http.addProject",
+                "title": "新建项目",
+                "icon": "$(add)"
+            },
+            {
+                "command": "vscode-http.manageEnvironments",
+                "title": "环境管理"
+            },
+            {
+                "command": "vscode-http.manageCollection",
+                "title": "管理集合"
+            },
+            {
+                "command": "vscode-http.addCollection",
+                "title": "添加集合",
+                "icon": "$(add)"
+            },
+            {
+                "command": "vscode-http.addInterface",
+                "title": "添加接口",
+                "icon": "$(add)"
+            },
+            {
+                "command": "vscode-http.deleteCollection",
+                "title": "删除集合",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "vscode-http.deleteInterface",
+                "title": "删除接口",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "vscode-http.deleteInstance",
+                "title": "删除实例",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "vscode-http.deleteProject",
+                "title": "删除",
+                "icon": "$(trash)"
+            }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "vscode-http.addProject",
+                    "when": "view == vscode-http.requestTree",
+                    "group": "navigation"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "vscode-http.addCollection",
+                    "when": "view == vscode-http.requestTree && viewItem == project",
+                    "group": "inline"
+                },
+                {
+                    "command": "vscode-http.deleteProject",
+                    "when": "view == vscode-http.requestTree && viewItem == project",
+                    "group": "inline"
+                },
+                {
+                    "command": "vscode-http.addInterface",
+                    "when": "view == vscode-http.requestTree && viewItem == collection",
+                    "group": "inline"
+                },
+                {
+                    "command": "vscode-http.deleteCollection",
+                    "when": "view == vscode-http.requestTree && viewItem == collection",
+                    "group": "inline"
+                },
+                {
+                    "command": "vscode-http.deleteInterface",
+                    "when": "view == vscode-http.requestTree && viewItem == interface",
+                    "group": "inline"
+                },
+                {
+                    "command": "vscode-http.deleteInstance",
+                    "when": "view == vscode-http.requestTree && viewItem == instance",
+                    "group": "inline"
+                }
+            ]
         }
-      ],
-      "view/item/context": [
-        {
-          "command": "vscode-http.addCollection",
-          "when": "view == vscode-http.requestTree && viewItem == project",
-          "group": "inline"
-        },
-        {
-          "command": "vscode-http.deleteProject",
-          "when": "view == vscode-http.requestTree && viewItem == project",
-          "group": "inline"
-        },
-        {
-          "command": "vscode-http.addInterface",
-          "when": "view == vscode-http.requestTree && viewItem == collection",
-          "group": "inline"
-        },
-        {
-          "command": "vscode-http.deleteCollection",
-          "when": "view == vscode-http.requestTree && viewItem == collection",
-          "group": "inline"
-        },
-        {
-          "command": "vscode-http.deleteInterface",
-          "when": "view == vscode-http.requestTree && viewItem == interface",
-          "group": "inline"
-        },
-        {
-          "command": "vscode-http.deleteInstance",
-          "when": "view == vscode-http.requestTree && viewItem == instance",
-          "group": "inline"
-        }
-      ]
-    }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "webpack",
-    "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
-  },
-  "devDependencies": {
-    "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "@types/ws": "^8.5.13",
-    "@types/vscode": "^1.105.1",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2",
-    "eslint": "^9.39.2",
-    "ts-loader": "^9.5.4",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.52.0",
-    "webpack": "^5.104.1",
-    "webpack-cli": "^6.0.1"
-  },
-  "dependencies": {
-    "ws": "^8.18.0"
-  }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "prepare:webview-assets": "node scripts/copy-webview-assets.js",
+        "compile": "npm run prepare:webview-assets && webpack",
+        "watch": "npm run prepare:webview-assets && webpack --watch",
+        "package": "npm run prepare:webview-assets && webpack --mode production --devtool hidden-source-map",
+        "compile-tests": "tsc -p . --outDir out",
+        "watch-tests": "tsc -p . -w --outDir out",
+        "pretest": "npm run compile-tests && npm run compile && npm run lint",
+        "lint": "eslint src",
+        "test": "vscode-test"
+    },
+    "devDependencies": {
+        "@types/mocha": "^10.0.10",
+        "@types/node": "22.x",
+        "@types/vscode": "^1.105.1",
+        "@types/ws": "^8.5.13",
+        "@vscode/test-cli": "^0.0.12",
+        "@vscode/test-electron": "^2.5.2",
+        "eslint": "^9.39.2",
+        "jsoneditor": "^10.4.2",
+        "ts-loader": "^9.5.4",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.52.0",
+        "webpack": "^5.104.1",
+        "webpack-cli": "^6.0.1",
+        "ws": "^8.18.0"
+    },
+    "dependencies": {}
 }
