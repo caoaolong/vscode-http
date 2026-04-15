@@ -385,6 +385,35 @@
       .body-panel.active {
         display: block;
       }
+      .json-body-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .json-body-toolbar .json-image-path {
+        flex: 1;
+        min-width: 140px;
+        padding: 6px 10px;
+        background: var(--vscode-input-background);
+        color: var(--vscode-input-foreground);
+        border: 1px solid var(--vscode-input-border);
+        border-radius: 6px;
+        font-size: 12px;
+      }
+      .json-body-toolbar .json-image-path:focus {
+        outline: none;
+        border-color: var(--vscode-focusBorder);
+      }
+      .json-body-toolbar select {
+        padding: 6px 10px;
+        background: var(--vscode-dropdown-background);
+        color: var(--vscode-dropdown-foreground);
+        border: 1px solid var(--vscode-dropdown-border);
+        border-radius: 6px;
+        font-size: 12px;
+      }
       .param-auth-header-tabs {
         display: flex;
         gap: 6px;
@@ -951,6 +980,26 @@
         </div>
 
         <div id="panel-json" class="body-panel active">
+          <div class="json-body-toolbar">
+            <input
+              type="text"
+              id="jsonImageFieldPath"
+              class="json-image-path"
+              placeholder="字段路径，如 image 或 body.avatar"
+              title="支持点号嵌套；数组下标用数字，如 items.0.url"
+            />
+            <select id="jsonImageEncoding" title="Data URL 含 image/*;base64, 前缀，多数接口可用">
+              <option value="dataUrl">Data URL（含 MIME）</option>
+              <option value="raw">纯 Base64</option>
+            </select>
+            <button
+              type="button"
+              class="btn add-btn btn-secondary"
+              id="btnInsertJsonImage"
+            >
+              选择图片插入
+            </button>
+          </div>
           <div id="bodyJson" class="monaco-container"></div>
         </div>
 
@@ -1412,6 +1461,16 @@
             break;
           default:
             bodyStr = (payload.body && payload.body.trim()) || "(无)";
+            if (
+              payload.bodyType === "json" &&
+              bodyStr.length > 2048
+            ) {
+              bodyStr =
+                bodyStr.slice(0, 2048) +
+                "\n... （已省略，共 " +
+                bodyStr.length +
+                " 字符）";
+            }
         }
         lines.push(bodyStr);
         return lines.join("\n");
@@ -1825,6 +1884,160 @@
         setEditorText(ed, val || "");
       }
 
+      /** 大段 Base64 在编辑器内用占位符表示，真实内容存在此表；发送/保存时再展开 */
+      const HTTP_INLINE_BLOB_PREFIX = "__HTTP_INLINE_BLOB__:";
+      let httpInlineBlobStore = Object.create(null);
+
+      function httpInlineGenId() {
+        return (
+          Date.now().toString(36) +
+          "_" +
+          Math.random().toString(36).slice(2, 10)
+        );
+      }
+
+      function httpInlineShouldCollapseString(s) {
+        if (typeof s !== "string") return false;
+        if (s.length >= 4096) return true;
+        if (s.length >= 120 && /^data:image\/[^;]+;base64,/i.test(s))
+          return true;
+        return false;
+      }
+
+      function httpInlineDeepCollapseForEditor(v) {
+        if (v === null || typeof v !== "object") {
+          if (typeof v === "string" && httpInlineShouldCollapseString(v)) {
+            const id = httpInlineGenId();
+            httpInlineBlobStore[id] = v;
+            return HTTP_INLINE_BLOB_PREFIX + id;
+          }
+          return v;
+        }
+        if (Array.isArray(v))
+          return v.map(httpInlineDeepCollapseForEditor);
+        const out = {};
+        for (const k of Object.keys(v)) {
+          out[k] = httpInlineDeepCollapseForEditor(v[k]);
+        }
+        return out;
+      }
+
+      function httpInlineDeepExpandForTransport(v) {
+        if (v === null || typeof v !== "object") {
+          if (
+            typeof v === "string" &&
+            v.indexOf(HTTP_INLINE_BLOB_PREFIX) === 0
+          ) {
+            const id = v.slice(HTTP_INLINE_BLOB_PREFIX.length);
+            if (
+              Object.prototype.hasOwnProperty.call(httpInlineBlobStore, id)
+            ) {
+              return httpInlineBlobStore[id];
+            }
+          }
+          return v;
+        }
+        if (Array.isArray(v))
+          return v.map(httpInlineDeepExpandForTransport);
+        const out = {};
+        for (const k of Object.keys(v)) {
+          out[k] = httpInlineDeepExpandForTransport(v[k]);
+        }
+        return out;
+      }
+
+      function httpInlineParsePathSegments(pathStr) {
+        return String(pathStr || "")
+          .trim()
+          .split(".")
+          .filter(function (s) {
+            return s.length > 0;
+          });
+      }
+
+      /** 按路径写入嵌套字段；中间路径不存在时自动创建对象或数组 */
+      function httpInlineSetAtPath(root, pathStr, value, create) {
+        const segs = httpInlineParsePathSegments(pathStr);
+        if (segs.length === 0) throw new Error("路径为空");
+        var cur = root;
+        for (var i = 0; i < segs.length - 1; i++) {
+          var key = segs[i];
+          var next = segs[i + 1];
+          var needArrayChild = /^\d+$/.test(next);
+          if (cur[key] == null) {
+            if (!create) throw new Error("路径不存在: " + key);
+            cur[key] = needArrayChild ? [] : {};
+          }
+          cur = cur[key];
+        }
+        cur[segs[segs.length - 1]] = value;
+      }
+
+      function applyJsonBodyFromInit(bodyStr) {
+        httpInlineBlobStore = Object.create(null);
+        var raw = (bodyStr || "").trim();
+        if (!raw) {
+          setEditorValue("json", "{}");
+          return;
+        }
+        try {
+          var obj = JSON.parse(raw);
+          var collapsed = httpInlineDeepCollapseForEditor(obj);
+          setEditorValue("json", JSON.stringify(collapsed, null, 2));
+        } catch (_) {
+          setEditorValue("json", bodyStr || "");
+        }
+      }
+
+      function expandJsonBodyFromEditor() {
+        var raw = getEditorValue("json");
+        var trimmed = raw.trim() || "{}";
+        try {
+          var obj = JSON.parse(trimmed);
+          var expanded = httpInlineDeepExpandForTransport(obj);
+          return JSON.stringify(expanded);
+        } catch (_) {
+          return raw;
+        }
+      }
+
+      function insertJsonImageBlob(fullValue) {
+        var pathInput = document.getElementById("jsonImageFieldPath");
+        var path = pathInput ? pathInput.value.trim() : "";
+        if (!path) {
+          responseStatus.textContent =
+            "请填写 JSON 字段路径（如 image 或 body.avatar）";
+          responseStatus.className = "response-status error";
+          return;
+        }
+        var root;
+        try {
+          root = JSON.parse(getEditorValue("json").trim() || "{}");
+        } catch (_) {
+          responseStatus.textContent =
+            "当前 JSON 无法解析，请先修正语法后再插入图片";
+          responseStatus.className = "response-status error";
+          return;
+        }
+        var id = httpInlineGenId();
+        httpInlineBlobStore[id] = fullValue;
+        try {
+          httpInlineSetAtPath(root, path, HTTP_INLINE_BLOB_PREFIX + id, true);
+        } catch (err) {
+          delete httpInlineBlobStore[id];
+          responseStatus.textContent =
+            err instanceof Error ? err.message : String(err);
+          responseStatus.className = "response-status error";
+          return;
+        }
+        setEditorValue("json", JSON.stringify(root, null, 2));
+        responseStatus.textContent =
+          "已插入图片到字段「" +
+          path +
+          "」（编辑器内为占位符，发送时使用完整编码）";
+        responseStatus.className = "response-status success";
+      }
+
       function getSelectedBaseUrl() {
         const envId = urlEnvSelect.value;
         const env = environments.find((e) => e.id === envId);
@@ -1890,7 +2103,7 @@
             payload.formUrlEncoded = collectFormUrlEncoded();
             break;
           case "json":
-            payload.body = getEditorValue("json");
+            payload.body = expandJsonBodyFromEditor();
             break;
           case "xml":
             payload.body = getEditorValue("xml");
@@ -1934,6 +2147,18 @@
 
       document.getElementById("addFormUrlEncoded").onclick = () =>
         addFormUrlEncodedRow();
+
+      (function initJsonImageInsert() {
+        var btn = document.getElementById("btnInsertJsonImage");
+        var enc = document.getElementById("jsonImageEncoding");
+        if (!btn || !enc) return;
+        btn.onclick = function () {
+          vscode.postMessage({
+            type: "pickImageForJsonBody",
+            encoding: enc.value === "raw" ? "raw" : "dataUrl",
+          });
+        };
+      })();
 
       document.getElementById("selectFile").onclick = () =>
         document.getElementById("fileInput").click();
@@ -2208,7 +2433,7 @@
           applyAuthConfig(m.auth);
           switchBodyType(m.bodyType || "json");
           const bodyStr = m.body || "";
-          setEditorValue("json", bodyStr);
+          applyJsonBodyFromInit(bodyStr);
           setEditorValue("xml", bodyStr);
           setEditorValue("raw", bodyStr);
           setEditorValue("graphql", bodyStr);
@@ -2272,7 +2497,7 @@
           applyAuthConfig(msg.auth);
           switchBodyType(msg.bodyType || "json");
           const bodyStr = msg.body || "";
-          setEditorValue("json", bodyStr);
+          applyJsonBodyFromInit(bodyStr);
           setEditorValue("xml", bodyStr);
           setEditorValue("raw", bodyStr);
           setEditorValue("graphql", bodyStr);
@@ -2293,6 +2518,13 @@
           setResponseBodyText("发送请求后显示响应");
         } else if (msg.type === "theme") {
           applyMonacoTheme(msg.theme);
+        } else if (msg.type === "jsonImageFieldValue") {
+          if (msg.error) {
+            responseStatus.textContent = String(msg.error);
+            responseStatus.className = "response-status error";
+          } else if (msg.value != null && msg.value !== "") {
+            insertJsonImageBlob(String(msg.value));
+          }
         } else if (msg.type === "sseStatus") {
           responseStatus.textContent =
             (msg.status != null ? msg.status : "") +

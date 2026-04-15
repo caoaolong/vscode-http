@@ -574,6 +574,49 @@ export function createRequestEditorPanel(
           if (wsHandle && msg.data !== undefined) {
             wsHandle.send(String(msg.data));
           }
+        } else if (msg.type === "pickImageForJsonBody") {
+          const encoding =
+            (msg.encoding as string) === "raw" ? "raw" : "dataUrl";
+          void vscode.window
+            .showOpenDialog({
+              canSelectMany: false,
+              openLabel: "插入到请求体",
+              filters: {
+                图像: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"],
+              },
+            })
+            .then((uris) => {
+              if (!uris || !uris[0]) return;
+              try {
+                const buf = fs.readFileSync(uris[0].fsPath);
+                const b64 = buf.toString("base64");
+                const ext = path.extname(uris[0].fsPath).toLowerCase();
+                const mimeByExt: Record<string, string> = {
+                  ".png": "image/png",
+                  ".jpg": "image/jpeg",
+                  ".jpeg": "image/jpeg",
+                  ".gif": "image/gif",
+                  ".webp": "image/webp",
+                  ".bmp": "image/bmp",
+                  ".svg": "image/svg+xml",
+                };
+                const mime = mimeByExt[ext] || "application/octet-stream";
+                const value =
+                  encoding === "raw"
+                    ? b64
+                    : `data:${mime};base64,${b64}`;
+                panel.webview.postMessage({
+                  type: "jsonImageFieldValue",
+                  value,
+                });
+              } catch (e) {
+                panel.webview.postMessage({
+                  type: "jsonImageFieldValue",
+                  error:
+                    e instanceof Error ? e.message : String(e),
+                });
+              }
+            });
         } else if (msg.type === "sendRequest") {
           sendHttpRequest({
             url: msg.url,
