@@ -6,6 +6,16 @@
 
 （暂无）
 
+## [0.0.7]
+
+### 新增
+
+- **CI 发版**：新增 GitHub Actions 工作流（`.github/workflows/publish.yml`），推送符合 `v*` 的 git 标签时使用 `VSCE_PAT` 发布至 Visual Studio Marketplace；若配置 `OVSX_PAT` 则同时发布至 Open VSX，未配置则跳过该步骤。
+
+### 变更
+
+- **新建接口流程**：在集合下新建接口时不再弹出接口名称、路径输入框及接口类型、HTTP 方法的 QuickPick；创建后直接进入请求编辑器，默认名称为「新接口」、路径 `/`、类型 HTTP、方法 GET，可在编辑器中修改并保存。
+
 ## [0.0.6]
 
 ### 新增

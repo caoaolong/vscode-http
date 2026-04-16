@@ -3,7 +3,7 @@
   "displayName": "vscode-http",
   "publisher": "codingsoul",
   "description": "A HTTP Client for VSCode",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "engines": {
     "vscode": "^1.105.1"
   },
