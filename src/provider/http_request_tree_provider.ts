@@ -398,51 +398,17 @@ export class HttpRequestTreeProvider implements vscode.TreeDataProvider<TreeData
   async createInterface(collection: Collection): Promise<Interface | undefined> {
     const project = this.getProjectForItem(collection);
     const baseUrl = project ? this.getCurrentBaseUrl(project) : undefined;
-    const name = await vscode.window.showInputBox({ prompt: '输入接口名称', placeHolder: '例如：获取用户信息' });
-    if (!name?.trim()) return undefined;
-    const pathInput = await vscode.window.showInputBox({
-      prompt: '输入路径',
-      placeHolder: baseUrl ? '/users 或 /api/stream' : 'https://api.example.com/users',
-      value: '/',
-    });
-    if (pathInput === undefined) return undefined;
-    const path = (pathInput ?? '/').trim();
-    const typePick = await vscode.window.showQuickPick(
-      [
-        { label: 'HTTP', description: '普通 HTTP 请求', type: 'http' as const },
-        { label: 'SSE', description: 'Server-Sent Events 服务端推送', type: 'sse' as const },
-        { label: 'WebSocket', description: 'WebSocket 双向通信', type: 'websocket' as const },
-      ],
-      { placeHolder: '选择接口类型', canPickMany: false }
-    );
-    if (!typePick) return undefined;
-    const interfaceType = typePick.type;
-    let fullUrl: string;
-    let method: string | undefined;
-    if (interfaceType === 'http') {
-      const methodPick = await vscode.window.showQuickPick(
-        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-        { placeHolder: '选择请求方法', canPickMany: false }
-      );
-      if (!methodPick) return undefined;
-      method = methodPick;
-      fullUrl = baseUrl
-        ? (baseUrl.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path))
-        : path.startsWith('http') ? path : 'https://api.example.com' + (path.startsWith('/') ? path : '/' + path);
-    } else if (interfaceType === 'sse') {
-      fullUrl = baseUrl
-        ? (baseUrl.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path))
-        : path.startsWith('http') ? path : 'https://api.example.com' + (path.startsWith('/') ? path : '/' + path);
-      method = 'GET';
-    } else {
-      const base = baseUrl || 'https://api.example.com';
-      const normalized = base.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path);
-      fullUrl = normalized.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'ws://');
-      method = undefined;
-    }
+    // 不再弹出 InputBox / QuickPick：默认 HTTP + GET，名称与路径在请求编辑器中修改
+    const name = '新接口';
+    const path = '/';
+    const interfaceType = 'http' as const;
+    const method = 'GET';
+    const fullUrl = baseUrl
+      ? baseUrl.replace(/\/+$/, '') + (path.startsWith('/') ? path : '/' + path)
+      : 'https://api.example.com/';
     const iface: Interface = {
       id: `api-${Date.now()}`,
-      name: name.trim(),
+      name,
       url: fullUrl,
       method,
       parentId: collection.id,
